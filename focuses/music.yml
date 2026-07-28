@@ -16,5 +16,5 @@ displayName: Classical Music
 description: "Look up, rate, and recommend classical works; find recordings and scores"
 icon: "🎻"
 defaultPersona: maestro    # the concert-programme voice the pack ships
-packs: [impromptu]         # only this pack's skills + APIs are visible to the LLM
+realms: [impromptu]        # only this realm's skills + APIs are visible to the LLM
 builtins: true             # keep the framework's built-in chat tools (memory, repository, etc.)
