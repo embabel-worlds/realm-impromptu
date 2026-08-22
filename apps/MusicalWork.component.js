@@ -7,7 +7,7 @@
 //
 // MusicalWork.fields: title, subtitle, composer, genre, workId, searchQuery.
 
-import { cardComponent } from '/apps/entity-card.js';
+import { cardComponent } from '/apps/world/entity-card.js';
 
 const styles = `
   .work{display:flex;flex-direction:column;gap:9px;font-family:'Inter',system-ui,sans-serif;}
@@ -101,7 +101,7 @@ function buildRating(host, workId, title, composer, gw) {
 }
 
 export default await cardComponent({
-  fragmentUrl: '/apps/MusicalWork.tpl',
+  fragmentUrl: '/apps/impromptu/MusicalWork.tpl',
   styles,
   bind(root, entity, f) {
     const title = f.title || entity.name || 'Untitled work';
