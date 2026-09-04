@@ -1,0 +1,218 @@
+{
+  "version": 1,
+  "generatedAt": "2026-09-04T15:36:39.595Z",
+  "entries": [
+    {
+      "namespace": "work",
+      "name": "details",
+      "description": "Fresh Open Opus metadata for this work (re-resolves it by its search string).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "composer": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "complete_name": {
+                      "type": "string"
+                    },
+                    "epoch": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "work": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "subtitle": {
+                      "type": "string"
+                    },
+                    "genre": {
+                      "type": "string"
+                    },
+                    "popular": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "onType": "MusicalWork",
+      "className": "MusicalWork"
+    },
+    {
+      "namespace": "work",
+      "name": "neighbors",
+      "description": "Who/what this entity is connected to, related to, or works with in the knowledge graph. Inherited by every pack type, so a new type is graph- navigable for free. Walks outward `hops` (1–3, default 1); optionally filter relationship types (CSV) and cap with `limit`. Returns the connected nodes nearest-first; empty if this node isn't persisted yet.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "hops": {
+            "type": "number"
+          },
+          "relTypes": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "hops": {
+              "type": "number"
+            },
+            "relPath": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "hops"
+          ]
+        }
+      },
+      "onType": "MusicalWork",
+      "className": "MusicalWork"
+    },
+    {
+      "namespace": "work",
+      "name": "rate",
+      "description": "Record the CURRENT USER's rating of this work (1–10). Recording IS making the link: createEntry against MusicalWorkRating auto-emits (me)-[:RATED]->(MusicalWorkRating) — and `me` is also a Person, so it reads uniformly with other people's ratings. Identity is `<myId>::<workId>`, so a re-rate updates in place. (Attributing a rating to ANOTHER person is a separate flow that resolves that person and links their node.)",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "rating": {
+            "type": "number"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "heardOn": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "rating"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "onType": "MusicalWork",
+      "className": "MusicalWork"
+    },
+    {
+      "namespace": "work",
+      "name": "recordings",
+      "description": "Recordings (performances) of this work — YouTube watch links found via Brave web search restricted to `youtube.com/watch`, so no Google API quota is spent. Each hit's `url` IS the watch link; `title` usually names the performers.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "onType": "MusicalWork",
+      "className": "MusicalWork"
+    },
+    {
+      "namespace": "work",
+      "name": "scores",
+      "description": "IMSLP score pages for this work — a Brave web search restricted to imslp.org. Scores are deliberately NOT a graph join (IMSLP lookup is a slow multi-step crawl); this direct search returns the work pages, each of which lists every public-domain edition. Present the page links; never invent a PDF URL.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "onType": "MusicalWork",
+      "className": "MusicalWork"
+    }
+  ]
+}
