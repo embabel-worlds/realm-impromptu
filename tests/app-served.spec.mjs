@@ -132,3 +132,74 @@ test.describe("the served app", () => {
     expect(page.url(), "clicking an external link navigated the app away from itself").toBe(before);
   });
 });
+
+/**
+ * The page is exactly one viewport tall, and its columns scroll inside it.
+ *
+ * It used to overflow by a CONSTANT 296px at every viewport size — the signature of a layout bug
+ * rather than too much content. `aside.guide` was `height: 100vh` while `main` sat below a header
+ * and a tab strip, so the page was always a viewport plus those two however little was on it: on
+ * first paint, before anybody had asked for anything, the footer and the bottom of the guide — the
+ * Ask button among them — hung off the bottom.
+ *
+ * Asserted at several viewports because a single height can pass by luck, and the constant offset
+ * is what makes this a bug rather than a long page.
+ */
+test.describe("the page fits its viewport", () => {
+  test.skip(!TOKEN, "IMPROMPTU_TOKEN is not set — cannot reach the appliance, so nothing is proven.");
+
+  for (const vp of [{ width: 1400, height: 900 }, { width: 1280, height: 760 }, { width: 1600, height: 1000 }]) {
+    test(`no page scroll at ${vp.width}x${vp.height}`, async ({ browser }) => {
+      const ctx = await browser.newContext({
+        extraHTTPHeaders: { Authorization: `Bearer ${TOKEN}` },
+        viewport: vp,
+      });
+      const page = await ctx.newPage();
+      await page.goto(APP, { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(1200);
+
+      const m = await page.evaluate(() => {
+        const badge = document.getElementById("embabel-badge").getBoundingClientRect();
+        const ask = document.getElementById("guideGo").getBoundingClientRect();
+        return {
+          overflow: document.documentElement.scrollHeight - window.innerHeight,
+          askAboveBadge: ask.bottom <= badge.top,
+          barHidden: document.getElementById("npBar").offsetHeight === 0,
+        };
+      });
+
+      expect(m.overflow, "the page scrolls on first paint, with nothing loaded").toBeLessThanOrEqual(0);
+      /* The badge is fixed to the window, so a column that fills the viewport can hide the one
+         control in it somebody has to reach. */
+      expect(m.askAboveBadge, "the Ask button is underneath the Embabel badge").toBe(true);
+      /* `hidden` loses to any class that sets `display`, which is how an empty now-playing bar
+         stayed on screen after being marked hidden. */
+      expect(m.barHidden, "the now-playing bar is showing with nothing playing").toBe(true);
+
+      await ctx.close();
+    });
+  }
+
+  test("a full list scrolls the column, never the page", async ({ browser }) => {
+    const ctx = await browser.newContext({
+      extraHTTPHeaders: { Authorization: `Bearer ${TOKEN}` },
+      viewport: { width: 1400, height: 900 },
+    });
+    const page = await ctx.newPage();
+    await page.goto(APP, { waitUntil: "domcontentloaded" });
+    await page.locator('nav.tabs button[data-panel="browse"]').click();
+    await page.locator("#eraGo").click();
+    await page.waitForTimeout(9000);
+
+    const m = await page.evaluate(() => {
+      const stage = document.querySelector(".stage");
+      return {
+        overflow: document.documentElement.scrollHeight - window.innerHeight,
+        stageScrolls: stage.scrollHeight > stage.clientHeight,
+      };
+    });
+    expect(m.stageScrolls, "the composer list did not load, so this proves nothing").toBe(true);
+    expect(m.overflow, "a long list grew the page instead of scrolling its column").toBeLessThanOrEqual(0);
+    await ctx.close();
+  });
+});

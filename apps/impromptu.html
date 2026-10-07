@@ -51,9 +51,25 @@
   }
 
   * { box-sizing: border-box; }
+  /* `hidden` means not rendered. Without this it loses to any class that sets `display`, which is
+     how the empty now-playing bar stayed on screen with its em-dash after being marked hidden. */
+  [hidden] { display: none !important; }
   html, body { background: var(--bg); }
+  /*
+   * THE PAGE IS EXACTLY ONE VIEWPORT TALL, and the columns scroll inside it.
+   *
+   * It used to overflow by a constant 296px at every viewport size — which is the signature of a
+   * layout bug rather than too much content. `aside.guide` was `height: 100vh`, and `main` sits
+   * BELOW a header and a tab strip, so the page was always a viewport plus the height of those two
+   * however little was on it: the footer and the bottom of the guide hung off the bottom on first
+   * paint, before anybody had asked for anything.
+   *
+   * `dvh`, not `vh`: on a phone `vh` is the viewport with the browser chrome RETRACTED, so a 100vh
+   * column is taller than what you can actually see until you scroll.
+   */
   body {
-    margin: 0; padding: 0 0 56px; color: var(--ink);
+    margin: 0; padding: 0; color: var(--ink);
+    height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
     /* A serif, from the system: a concert programme is set in one, and a webfont request from a
        file:// or app origin is a dependency this page does not need. */
     font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Hoefler Text', 'Source Serif Pro', Georgia, serif;
@@ -100,15 +116,28 @@
   nav.tabs button[aria-selected="true"] { color: var(--gold); border-bottom-color: var(--gold); }
 
   /* ── Layout ─────────────────────────────────────────────────────────────── */
-  main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 0; align-items: start; }
-  .stage { padding: 24px 28px; min-width: 0; }
+  header, nav.tabs { flex: 0 0 auto; }
+  main {
+    flex: 1 1 auto; min-height: 0;
+    display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 0;
+  }
+  /* Each column scrolls itself, so the masthead and the tabs never leave. The bottom padding clears
+     the fixed Embabel badge, which would otherwise sit on top of the last row. */
+  .stage { padding: 24px 28px 64px; min-width: 0; overflow-y: auto; }
   aside.guide {
-    position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column;
+    min-height: 0; display: flex; flex-direction: column;
     border-left: 1px solid var(--edge); background: var(--bg-deep);
   }
+  /*
+   * Narrow: back to ordinary document scrolling. Two independently scrolling panes is a desktop
+   * idea; on a phone it strands the guide below a column you have to reach the end of first.
+   */
   @media (max-width: 1040px) {
+    body { height: auto; overflow: visible; }
     main { grid-template-columns: 1fr; }
-    aside.guide { position: static; height: auto; border-left: 0; border-top: 1px solid var(--edge); }
+    .stage { overflow-y: visible; }
+    aside.guide { border-left: 0; border-top: 1px solid var(--edge); }
+    .guide-thread { overflow-y: visible; }
   }
 
   /* ── The player ─────────────────────────────────────────────────────────── */
@@ -235,7 +264,9 @@
     font-family: system-ui, sans-serif; font-size: .67rem; color: var(--dim);
     margin-top: 7px; padding-top: 6px; border-top: 1px dotted var(--edge);
   }
-  .guide-foot { border-top: 1px solid var(--edge); padding: 12px 18px 16px; display: flex; flex-direction: column; gap: 9px; }
+  /* 64px, not 16: the Embabel badge is fixed to the bottom of the window and would otherwise sit on
+     top of the Ask button — the one control in this column somebody needs to reach. */
+  .guide-foot { border-top: 1px solid var(--edge); padding: 12px 18px 64px; display: flex; flex-direction: column; gap: 9px; }
   .guide-foot textarea {
     width: 100%; background: var(--surface); color: var(--ink); border: 1px solid var(--edge);
     border-radius: 6px; padding: 9px 11px; resize: vertical; min-height: 58px;
@@ -260,7 +291,7 @@
   .figures { display: flex; gap: 26px; flex-wrap: wrap; margin-bottom: 6px; }
   .figure .n { font-size: 1.9rem; color: var(--gold); line-height: 1.1; }
   .figure .l { font-family: system-ui, sans-serif; font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
-  footer { padding: 22px 28px; color: var(--dim); font-size: .78rem; border-top: 1px solid var(--edge); }
+  footer { margin-top: 28px; padding: 18px 0 0; color: var(--dim); font-size: .78rem; border-top: 1px solid var(--edge); }
 </style>
 </head>
 <body>
@@ -356,6 +387,12 @@
       <h2>What you have heard</h2>
       <div id="heardOut"></div>
     </section>
+
+<footer>
+  Works and composers from <a href="https://openopus.org/" target="_blank" rel="noopener noreferrer">Open Opus</a>;
+  recordings found on YouTube; scores on <a href="https://imslp.org/" target="_blank" rel="noopener noreferrer">IMSLP</a>.
+  Maestro's opinions are his own and are written down in the realm, where you can read them.
+</footer>
   </div>
 
   <!-- ── The guide ──────────────────────────────────────────────────────── -->
@@ -375,11 +412,6 @@
   </aside>
 </main>
 
-<footer>
-  Works and composers from <a href="https://openopus.org/" target="_blank" rel="noopener noreferrer">Open Opus</a>;
-  recordings found on YouTube; scores on <a href="https://imslp.org/" target="_blank" rel="noopener noreferrer">IMSLP</a>.
-  Maestro's opinions are his own and are written down in the realm, where you can read them.
-</footer>
 
 <div id="embabel-badge" style="position:fixed;bottom:0;left:0;right:0;text-align:center;padding:6px 0;background:rgba(10,10,15,0.9);border-top:1px solid rgba(99,192,245,0.2);font-size:0.75rem;color:#6b7280;z-index:9999;pointer-events:none;">
   Created with <a href="https://worlds.embabel.com" target="_blank" rel="noopener noreferrer" style="color:#63c0f5;text-decoration:none;pointer-events:auto;">Embabel Worlds</a>
