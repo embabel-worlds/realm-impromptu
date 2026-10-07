@@ -20,34 +20,60 @@
    * Every hall is dark. This is a room you listen in, not a document you read, and a white page
    * behind a player is a browser tab rather than an evening.
    */
+  /*
+   * Four rooms, and they have to look like four DIFFERENT rooms.
+   *
+   * The first attempt was the same near-black four times with a few percent of hue between them,
+   * and a desaturated tan standing in for gold — which reads as beige. It looked like a dark app
+   * wearing four names.
+   *
+   * What makes a hall look like a hall is CONTRAST, not darkness. The house is dim; the gilt, the
+   * plaster and the stage are luminous. So each palette now has something genuinely bright in it,
+   * and each takes its character from what that room is actually known for rather than from a tint:
+   *
+   *   Musikverein   the Golden Hall: gold leaf everywhere, ivory walls, caryatids. Gilded and warm.
+   *   La Scala      crimson velvet and gold, with the red present as a SURFACE, not just an accent.
+   *   Bayreuth      Wagner's anti-theatre: bare wood, no boxes, NO GILT, the house in total dark.
+   *                 Deliberately the plainest of the four — gold here would be a lie about the room.
+   *   Concertgebouw white plaster and gold, and the one LIGHT palette: a programme on cream paper
+   *                 in the afternoon, which is a different thing from a dark room at night.
+   *
+   * `--glow` exists because the header and stage washes were hardcoded gold rgba, which is wrong on
+   * a light ground; every tint now comes from the hall.
+   */
   :root,
   :root[data-hall="musikverein"] {
-    --bg: #14100c; --bg-deep: #0d0a07; --surface: #1d1811; --surface-2: #272015;
-    --edge: #39301f; --edge-bright: #5a4a2c;
-    --gold: #d8b27a; --gold-soft: #a98c5f; --ink: #f2ece1; --dim: #9a8f7c;
-    --accent: #c8553d; --ok: #7f9f6a;
-    --hall: "Musikverein";
-  }
-  :root[data-hall="bayreuth"] {
-    --bg: #16090c; --bg-deep: #0e0507; --surface: #211014; --surface-2: #2d161b;
-    --edge: #44202a; --edge-bright: #6b3240;
-    --gold: #d9a38a; --gold-soft: #a9705c; --ink: #f4e9e6; --dim: #a28a85;
-    --accent: #c0485c; --ok: #87a06f;
-    --hall: "Bayreuth";
+    --bg: #16110a; --bg-deep: #0c0906; --surface: #221a0f; --surface-2: #2f2415;
+    --edge: #403015; --edge-bright: #6b5222;
+    --gold: #f0cc72; --gold-soft: #b79a53; --ink: #f8f1e0; --dim: #a2947a;
+    --accent: #c0392b; --ok: #8fae6a;
+    --glow: 240, 204, 114;
   }
   :root[data-hall="scala"] {
-    --bg: #12110f; --bg-deep: #0b0a09; --surface: #1e1c17; --surface-2: #2a2720;
-    --edge: #3b382d; --edge-bright: #5e5943;
-    --gold: #e3cf9b; --gold-soft: #b1a177; --ink: #f6f1e4; --dim: #9f9883;
-    --accent: #a8402f; --ok: #849d6c;
-    --hall: "La Scala";
+    --bg: #1b0a0d; --bg-deep: #100508; --surface: #2a0f14; --surface-2: #3a161c;
+    --edge: #5a2029; --edge-bright: #8c3340;
+    --gold: #edc87c; --gold-soft: #b8905a; --ink: #faece9; --dim: #b2908d;
+    --accent: #d94452; --ok: #8aa86d;
+    --glow: 217, 68, 82;
   }
-  :root[data-hall="midnight"] {
-    --bg: #0c0d16; --bg-deep: #07080f; --surface: #151723; --surface-2: #1e2133;
-    --edge: #2b2f47; --edge-bright: #434a6d;
-    --gold: #b9b2e8; --gold-soft: #8a84b8; --ink: #ecebf6; --dim: #8d8aa3;
-    --accent: #e0719a; --ok: #74a79a;
-    --hall: "Midnight";
+  :root[data-hall="bayreuth"] {
+    /* No gold. Wagner had the house unadorned and the auditorium dark, and a gilded Bayreuth would
+       be a prettier lie than a plain one. The brightest thing here is lamplight on wood. */
+    --bg: #1a1410; --bg-deep: #100c09; --surface: #251c15; --surface-2: #32261c;
+    --edge: #3f3124; --edge-bright: #634c36;
+    --gold: #d9a566; --gold-soft: #9e7748; --ink: #efe6da; --dim: #9b8c7a;
+    --accent: #a85a3c; --ok: #87a070;
+    --glow: 217, 165, 102;
+  }
+  :root[data-hall="concertgebouw"] {
+    /* The light one. White plaster, gold ornament, red seats — read in daylight. */
+    --bg: #f5f0e4; --bg-deep: #ebe4d3; --surface: #fffcf4; --surface-2: #f2ebdb;
+    --edge: #d9cdb4; --edge-bright: #b9a685;
+    /* #9a7320 was prettier and failed WCAG AA on this ground at 3.8:1 — and gold is what links are
+       drawn in here, so that is body text failing, not an ornament. 5.1:1. */
+    --gold: #80601a; --gold-soft: #6b4e14; --ink: #241f17; --dim: #6b6153;
+    --accent: #a8332e; --ok: #4f6b3a;
+    --glow: 128, 96, 26;
   }
 
   * { box-sizing: border-box; }
@@ -84,7 +110,7 @@
   header {
     padding: 26px 28px 18px; border-bottom: 1px solid var(--edge);
     background:
-      radial-gradient(900px 260px at 14% -40%, rgba(216,178,122,.13), transparent 70%),
+      radial-gradient(900px 260px at 14% -40%, rgba(var(--glow), .16), transparent 70%),
       linear-gradient(180deg, var(--bg-deep), var(--bg));
   }
   .masthead { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
@@ -101,10 +127,10 @@
     border: 1px solid var(--edge-bright); background: var(--surface-2);
   }
   .hall-dot[aria-pressed="true"] { outline: 2px solid var(--gold); outline-offset: 2px; }
-  .hall-dot.musikverein { background: linear-gradient(135deg, #d8b27a, #5a4a2c); }
-  .hall-dot.bayreuth    { background: linear-gradient(135deg, #c0485c, #44202a); }
-  .hall-dot.scala       { background: linear-gradient(135deg, #e3cf9b, #a8402f); }
-  .hall-dot.midnight    { background: linear-gradient(135deg, #b9b2e8, #2b2f47); }
+  .hall-dot.musikverein   { background: linear-gradient(135deg, #f0cc72 55%, #3a2c13); }
+  .hall-dot.scala         { background: linear-gradient(135deg, #edc87c 45%, #8c1f2b); }
+  .hall-dot.bayreuth      { background: linear-gradient(135deg, #d9a566 45%, #2a2018); }
+  .hall-dot.concertgebouw { background: linear-gradient(135deg, #fffcf4 55%, #9a7320); }
 
   /* ── Tabs ───────────────────────────────────────────────────────────────── */
   nav.tabs { display: flex; gap: 2px; padding: 0 28px; border-bottom: 1px solid var(--edge); background: var(--bg-deep); flex-wrap: wrap; }
@@ -157,7 +183,7 @@
     width: 100%; display: flex; align-items: center; justify-content: center;
     color: var(--dim); font-style: italic; text-align: center; padding: 26px 20px;
     background:
-      radial-gradient(560px 180px at 50% 130%, rgba(216,178,122,.12), transparent 70%),
+      radial-gradient(560px 180px at 50% 130%, rgba(var(--glow), .14), transparent 70%),
       linear-gradient(180deg, var(--bg-deep), var(--surface));
     border-bottom: 1px solid var(--edge);
   }
@@ -220,7 +246,7 @@
   }
   .btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
   .btn:disabled { opacity: .45; cursor: default; }
-  .btn.primary { background: linear-gradient(160deg, rgba(216,178,122,.22), rgba(216,178,122,.06)); border-color: var(--gold); color: var(--gold); }
+  .btn.primary { background: linear-gradient(160deg, rgba(var(--glow), .22), rgba(var(--glow), .06)); border-color: var(--gold); color: var(--gold); }
   .btn.play::before { content: "▶"; margin-right: 6px; font-size: .8em; }
 
   .ask { display: flex; gap: 9px; align-items: stretch; flex-wrap: wrap; margin-bottom: 8px; }
@@ -304,10 +330,10 @@
     </div>
     <div class="halls" role="group" aria-label="Hall">
       <span>Hall</span>
-      <button class="hall-dot musikverein" data-hall="musikverein" title="Musikverein — gold on walnut" aria-pressed="true"></button>
-      <button class="hall-dot bayreuth" data-hall="bayreuth" title="Bayreuth — wine and dust" aria-pressed="false"></button>
-      <button class="hall-dot scala" data-hall="scala" title="La Scala — cream and scarlet" aria-pressed="false"></button>
-      <button class="hall-dot midnight" data-hall="midnight" title="Midnight — a late recital" aria-pressed="false"></button>
+      <button class="hall-dot musikverein" data-hall="musikverein" title="Musikverein — the Golden Hall: gold leaf and ivory" aria-pressed="true"></button>
+      <button class="hall-dot scala" data-hall="scala" title="La Scala — crimson velvet and gold" aria-pressed="false"></button>
+      <button class="hall-dot bayreuth" data-hall="bayreuth" title="Bayreuth — bare wood, no gilt, the house in darkness" aria-pressed="false"></button>
+      <button class="hall-dot concertgebouw" data-hall="concertgebouw" title="Concertgebouw — white plaster and gold, in daylight" aria-pressed="false"></button>
     </div>
   </div>
 </header>
