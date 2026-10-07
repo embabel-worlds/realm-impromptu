@@ -1,7 +1,598 @@
 {
   "version": 1,
-  "generatedAt": "2026-09-04T15:36:39.595Z",
+  "generatedAt": "2026-10-07T00:47:05.985Z",
   "entries": [
+    {
+      "namespace": "impromptu",
+      "name": "askMaestro",
+      "description": "Ask a guide about music, grounded in what this listener has actually done.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "guide": {
+            "type": "string"
+          },
+          "guideName": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "grounding": {
+            "type": "object",
+            "properties": {
+              "ratings": {
+                "type": "number"
+              },
+              "listens": {
+                "type": "number"
+              },
+              "stances": {
+                "type": "number"
+              },
+              "worksInView": {
+                "type": "number"
+              },
+              "knowledge": {
+                "type": "string"
+              },
+              "challenge": {
+                "type": "number"
+              },
+              "prePiano": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "strippedLinks": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "ratings",
+              "listens",
+              "stances",
+              "worksInView",
+              "knowledge",
+              "challenge",
+              "prePiano",
+              "strippedLinks"
+            ]
+          },
+          "conversation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "guide",
+          "guideName",
+          "question",
+          "answer",
+          "grounding"
+        ]
+      }
+    },
+    {
+      "namespace": "impromptu",
+      "name": "findComposersByIds",
+      "description": "Composers by id — COMPOSED_BY. Batched: the catalogue's ids endpoint takes a comma-separated list, so a page of forty works resolves its composers in one request rather than forty.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ids"
+        ]
+      },
+      "outputSchema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "composerId": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "completeName": {
+              "type": "string"
+            },
+            "epoch": {
+              "type": "string"
+            },
+            "birth": {
+              "type": "string"
+            },
+            "death": {
+              "type": "string"
+            },
+            "portrait": {
+              "type": "string"
+            },
+            "prePiano": {
+              "type": "boolean"
+            },
+            "ofEra": {
+              "type": "string"
+            },
+            "influenced": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "composerId",
+            "name",
+            "completeName",
+            "epoch",
+            "birth",
+            "death",
+            "portrait",
+            "prePiano"
+          ]
+        }
+      }
+    },
+    {
+      "namespace": "impromptu",
+      "name": "findComposersByName",
+      "description": "One composer by name — the resolver behind INFLUENCED_BY. Per-key rather than batched, because `omnisearch` is a free-text search and merging several names into one query returns a mess.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "outputSchema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "composerId": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "completeName": {
+              "type": "string"
+            },
+            "epoch": {
+              "type": "string"
+            },
+            "birth": {
+              "type": "string"
+            },
+            "death": {
+              "type": "string"
+            },
+            "portrait": {
+              "type": "string"
+            },
+            "prePiano": {
+              "type": "boolean"
+            },
+            "ofEra": {
+              "type": "string"
+            },
+            "influenced": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "composerId",
+            "name",
+            "completeName",
+            "epoch",
+            "birth",
+            "death",
+            "portrait",
+            "prePiano"
+          ]
+        }
+      }
+    },
+    {
+      "namespace": "impromptu",
+      "name": "findComposersOfEra",
+      "description": "Every catalogued composer of a style period — HAS_COMPOSER, the browse path for \"something Baroque\". Per-era calls, since the endpoint takes one era; eras are few and cached for a month.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "eras": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "eras"
+        ]
+      },
+      "outputSchema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "composerId": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "completeName": {
+              "type": "string"
+            },
+            "epoch": {
+              "type": "string"
+            },
+            "birth": {
+              "type": "string"
+            },
+            "death": {
+              "type": "string"
+            },
+            "portrait": {
+              "type": "string"
+            },
+            "prePiano": {
+              "type": "boolean"
+            },
+            "ofEra": {
+              "type": "string"
+            },
+            "influenced": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "composerId",
+            "name",
+            "completeName",
+            "epoch",
+            "birth",
+            "death",
+            "portrait",
+            "prePiano"
+          ]
+        }
+      }
+    },
+    {
+      "namespace": "impromptu",
+      "name": "findWorksOfComposer",
+      "description": "A composer's works — HAS_WORK. With no `genre`, this walks the widening chain until the catalogue has something: the set to choose FROM, not an instruction to play the first one.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "composerIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "genre": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "composerIds"
+        ]
+      },
+      "outputSchema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "workId": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "subtitle": {
+              "type": "string"
+            },
+            "composer": {
+              "type": "string"
+            },
+            "composerId": {
+              "type": "string"
+            },
+            "genre": {
+              "type": "string"
+            },
+            "popular": {
+              "type": "boolean"
+            },
+            "searchQuery": {
+              "type": "string"
+            },
+            "ofComposer": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "workId",
+            "title",
+            "subtitle",
+            "composer",
+            "composerId",
+            "genre",
+            "popular",
+            "searchQuery"
+          ]
+        }
+      }
+    },
+    {
+      "namespace": "impromptu",
+      "name": "guides",
+      "description": "The guides this realm ships, for a picker that does not have to know their names in advance.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "outputSchema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "tagline": {
+              "type": "string"
+            },
+            "isDefault": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "slug",
+            "name",
+            "tagline",
+            "isDefault"
+          ]
+        }
+      }
+    },
+    {
+      "namespace": "impromptu",
+      "name": "popularComposers",
+      "description": "The catalogue's own most-performed composers — the answer to \"where do I even start\" that needs no era, no name and no history. Not a producer: there is no anchor to hang it on, and a surface that wants a starting point calls it directly.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "outputSchema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "composerId": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "completeName": {
+              "type": "string"
+            },
+            "epoch": {
+              "type": "string"
+            },
+            "birth": {
+              "type": "string"
+            },
+            "death": {
+              "type": "string"
+            },
+            "portrait": {
+              "type": "string"
+            },
+            "prePiano": {
+              "type": "boolean"
+            },
+            "ofEra": {
+              "type": "string"
+            },
+            "influenced": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "composerId",
+            "name",
+            "completeName",
+            "epoch",
+            "birth",
+            "death",
+            "portrait",
+            "prePiano"
+          ]
+        }
+      }
+    },
+    {
+      "namespace": "impromptu",
+      "name": "rateWork",
+      "description": "Record what a person thought of a work, 1-10. The same write `MusicalWork.rate` makes, exposed as a namespace verb so an agent can be granted it by name without being granted entry creation at large.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "recorded": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "recorded"
+        ]
+      }
+    },
+    {
+      "namespace": "impromptu",
+      "name": "recordListen",
+      "description": "Record that a person HEARD a work. The event, not the opinion — see MusicalListen in types/music.yml for why the two are separate types.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "workId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "composer": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "performance": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "finished": {
+            "oneOf": [
+              {
+                "type": "undefined"
+              },
+              {
+                "type": "undefined"
+              }
+            ]
+          }
+        },
+        "required": [
+          "workId"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "recorded": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "recorded"
+        ]
+      }
+    },
+    {
+      "namespace": "impromptu",
+      "name": "recordListenerLevel",
+      "description": "Revise how much a listener knows and how hard they want to be pushed. One node per person, updated in place — the durable form of the two notebook slots that steer every recommendation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "knowledge": {
+            "type": "string"
+          },
+          "challenge": {
+            "type": "number"
+          },
+          "challengeNote": {
+            "type": "string"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "recorded": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "recorded"
+        ]
+      }
+    },
+    {
+      "namespace": "impromptu",
+      "name": "recordTaste",
+      "description": "Record a stance on a DIMENSION of music — \"no solo piano\", \"period instruments or nothing\". This is what a rating cannot express and a proposition cannot be anti-joined on.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "stance": {
+            "type": "string"
+          },
+          "because": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "value",
+          "stance"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "recorded": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "recorded"
+        ]
+      }
+    },
     {
       "namespace": "work",
       "name": "details",

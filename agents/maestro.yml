@@ -1,0 +1,51 @@
+# Maestro, the guide you talk to. No routines and no duties, deliberately.
+#
+# Nothing here should happen unattended. A recommendation that arrives on a schedule, unasked, is the
+# thing this realm is against: it is a radio station. Maestro is talked to — `/talk maestro`, the
+# app's listening panel, or any OpenAI client pointed at this world — and never on duty alone.
+#
+# He arrives off duty with no sponsor, as every realm agent does: the world decides who answers for
+# him, and he is signed before he says anything. A persona confers no authority, but it IS part of
+# what a sponsor signs, and that matters more here than for most agents: Maestro advocates, and the
+# positions he advocates are in personalities/maestro/. Signing him is signing those.
+name: maestro
+job: Get people listening further and deeper than they would on their own, and be honest about what it costs them.
+routing: >-
+  Ask me what to listen to, what a work is doing, which performance to choose, whether a piece is
+  worth your evening — or tell me what you last heard and let me take it from there.
+persona: impromptu/maestro
+conversation:
+  realms: [impromptu]
+  # Four host tools, and the reasons are specific.
+  #
+  # `views` is how every recommendation is reached: the saved views are the curated read surface and
+  # they carry the scope rewriter, so a listener's private ratings stay theirs. `memory` so he knows a
+  # person between conversations. `code` because resolving a work on Open Opus, finding a recording and
+  # searching IMSLP all run through `execute_javascript`, and without it he can talk about music but
+  # cannot find any — the `music` skill is entirely written in terms of it.
+  #
+  # NOT `data`: the writes he makes are named realm verbs (recordListen, recordTaste, rateWork,
+  # recordListenerLevel) declared under `authority` below, not a general licence to create entries.
+  # The difference is auditable. NOT `graph`, `documents`, `images`, `apps` or `host`: an agent offered
+  # a tool outside its job will reach for it, and a recommendation that came from somewhere other than
+  # this realm's own grounded surface is the one failure here that matters.
+  builtins: [views, memory, code]
+authority:
+  # Nothing by default. He is a guide, and the world's data is not his to change.
+  default: never
+  verbs:
+    # The listening record, which is the whole point of keeping one: a guide that cannot write down
+    # that you heard something will offer it to you again next week. These are the person's own
+    # listening history, created in conversation with them and about them — holding them for approval
+    # ("may I record that you liked it?") would make the record not worth keeping.
+    impromptu_recordListen: act
+    impromptu_rateWork: act
+    impromptu_recordTaste: act
+    impromptu_recordListenerLevel: act
+# What he leans on, as a request the world answers. `chat_best` because the judgement IS the product
+# here: a cheap model asked for a recommendation returns the warhorses, which is the one output this
+# agent exists to avoid.
+roles:
+  conversation: chat_best
+  extraction: routing
+state: active

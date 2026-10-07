@@ -1,22 +1,33 @@
 # Work metadata.
 #
-# Open Opus (`openopus`): free, NO auth. One operation — `omnisearch` — resolves a
-# free-text "composer + work" string into a stable work id + title + composer + genre,
-# so a MusicalWork canonicalizes onto the Open Opus spine (the classical-music analogue
-# of OMDb's IMDb id). Vendored as a narrow spec (just the one op the skill/producers use),
-# the same approach pack-movie takes for OMDb.
+# Open Opus (`openopus`): free, NO auth. Two modes, and the realm needs both.
 #
-# YOUTUBE is NOT declared here. Recordings come from the YouTube Data API v3 `search`
-# slice, which lives in the RESEARCH pack (`gateway.youtube.searchYouTubeVideos`) as a
-# general, reusable capability — a vendored OpenAPI spec, NOT MCP. This pack REQUIRES
-# pack-research to be installed for recordings (the `recordingsByWork` producer and the
-# `music` skill call that gateway op); without it, recording lookups degrade gracefully
-# to "the integration may not be connected". Set YOUTUBE_API_KEY on the assistant process.
+# SEARCH — `omnisearch` resolves a free-text "composer + work" string into a stable work id +
+# title + composer + genre, so a MusicalWork canonicalizes onto the Open Opus spine (the
+# classical-music analogue of OMDb's IMDb id).
 #
-# IMSLP (public-domain scores) is NOT an API: its lookup is a multi-step MediaWiki crawl
-# (search page → list files → resolve PDF urls) that doesn't map to a single remote op, so
-# the pack sources scores with a web-grounded generative producer instead (see
-# producers/impromptu.yml → scoresForWork).
+# BROWSE — `popularComposers`, `composersByEpoch`, `composerByIds` and `worksByGenre` walk the
+# catalogue by STRUCTURE. These exist because search only serves a listener who can already name
+# what they want, and this realm's whole difficulty was that it had nothing to say to anyone else:
+# every path began at a work the user had already rated 8 or more, so a newcomer was told to go and
+# rate something first. An era, a composer, a portrait and a first work are reachable with no
+# ratings, no generation and no model call at all.
+#
+# `composerByIds` takes a comma-separated list, which is why the composer join over a page of works
+# is one request rather than one per row.
+#
+# RECORDING SEARCH is NOT declared here. Recordings are YouTube watch links found via
+# BRAVE web search (`gateway.brave.webSearch` with `site:youtube.com/watch`), which lives
+# in the RESEARCH pack as a general, reusable capability — a vendored OpenAPI spec, NOT
+# MCP. (The YouTube Data API's `search.list` costs 100 quota units per call — ~100
+# searches/day on the free tier — while a Brave hit's `url` IS the watch link.) This pack
+# REQUIRES pack-research installed for recordings (the `recordingsByWork` producer and the
+# `music` skill use that op); without it, recording lookups degrade gracefully. Set
+# BRAVE_API_KEY on the assistant process.
+#
+# IMSLP (public-domain scores) is NOT an API and NOT a graph join: its lookup is a slow
+# multi-step MediaWiki crawl, so the `music` skill searches it directly in code mode
+# (brave webSearch restricted to imslp.org) when the user asks for a score.
 
 - url: openopus-openapi.json
   name: openopus
@@ -24,3 +35,7 @@
   auth: none
   operation-ids:
     - omnisearch
+    - popularComposers
+    - composersByEpoch
+    - composerByIds
+    - worksByGenre

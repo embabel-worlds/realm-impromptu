@@ -1,57 +1,60 @@
-# Named Cypher VIEWS for the Cypher console's Views tab. The SIMILAR_TO / HAS_RECORDING / HAS_SCORE /
+# Named Cypher VIEWS for the Cypher console's Views tab. The SIMILAR_TO / HAS_RECORDING /
 # HAS_MUSICAL_TASTE_SUMMARY / SUGGESTS edges are virtual — they materialize on demand when the view runs.
+# (Printed scores are NOT a view/join concern: IMSLP search is a slow crawl, served by the `music`
+# skill as a direct code-mode web search instead.)
 # `(me:AssistantUser)` is NAMED so the scope rewriter binds it to the current user (private ratings never
 # leak). Keep every virtual join in the LEADING MATCH block (a virtual join after a `WITH` is NOT
 # materialized); put LIMIT/ORDER BY at the END.
 #
 # These are TABULAR views (they RETURN readable scalar columns, not the node), so each is terminal — run it
-# to see the table. The two "listen + score" views below materialize a YouTube recording AND an IMSLP score
-# PER candidate work, so they do one API call + one web search per work: give them a minute, and prefer the
-# cheap browse views (ChamberRecommendations / WorksYoullProbablyDislike) when you just want titles.
+# to see the table. The "listen" views below materialize a YouTube recording PER candidate work (one web
+# search per work, cached): quick, but prefer the cheap browse views (ChamberRecommendations /
+# WorksYoullProbablyDislike) when you just want titles.
 
-# Top works you'd like, each with ONE recording to hear and ONE public-domain score to read.
-# SIMILAR_TO (works like the ones you loved) → HAS_RECORDING (YouTube, required) → HAS_SCORE (IMSLP, optional).
+# NO `ORDER BY` WITH THE LIMIT, DELIBERATELY. HAS_RECORDING is a web search capped at 8 results per
+# work with no paging, so any ranked, limited query above it is refused — INCOMPLETE_RANKING: nothing
+# proves the records that were not fetched rank below the ones that were, so "the top N" would be a
+# claim the fetch cannot support. The engine is right to refuse it, and it would still be right here
+# even though these views only ever take ONE recording per work, which no truncation at 8 could change.
+# So the bound stays and the ranking claim goes: these are N rows in the order the source returned
+# them, which is true. A surface that wants them ordered can sort what it is given.
+
+# Top works you'd like, each with ONE recording to hear.
+# SIMILAR_TO (works like the ones you loved) → HAS_RECORDING (YouTube, required).
 # Ranked by overlap: how many of your loved works point at each candidate.
 - name: WorkRecommendations
-  description: Top 5 works you'd like — with a recording to hear and a public-domain score.
+  description: Top 5 works you'd like — each with a recording to hear.
   cypher: |
     MATCH (me:AssistantUser)-[:RATED]->(rt:MusicalWorkRating) WHERE rt.rating >= 8
     MATCH (rt)-[:SIMILAR_TO]->(w:MusicalWork)
     WHERE NOT EXISTS { (me)-[:RATED]->(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
     MATCH (w)-[:HAS_RECORDING]->(r:MusicalRecording)
-    OPTIONAL MATCH (w)-[:HAS_SCORE]->(s:MusicalScore)
     WITH w, count(DISTINCT rt) AS overlap,
-         head(collect(DISTINCT r)) AS rec,
-         head(collect(DISTINCT s)) AS score
+         head(collect(DISTINCT r)) AS rec
     RETURN w.composer AS Composer,
            w.title    AS Work,
-           rec.channel AS Performer,
-           'https://www.youtube.com/watch?v=' + rec.videoId AS Recording,
-           coalesce(score.url, score.pageUrl, '—') AS Score
-    ORDER BY overlap DESC, Work ASC
+           rec.title  AS Performance,
+           rec.url    AS Recording,
+           overlap    AS LovedWorksPointingHere
     LIMIT 5
 
 # Recommendations from your taste AS A WHOLE — a two-stage chain (fan-IN MusicalTasteSummary → fan-OUT
-# SUGGESTS), each pick given a recording and a score. Same "listen + score" shape as WorkRecommendations,
-# but sourced from your overall taste rather than similars to any one work.
+# SUGGESTS), each pick given a recording. Same "listen" shape as WorkRecommendations, but sourced from
+# your overall taste rather than similars to any one work.
 - name: TasteBasedRecommendations
-  description: Works matching your overall taste — with a recording and a public-domain score.
+  description: Works matching your overall taste — each with a recording to hear.
   cypher: |
     MATCH (me:AssistantUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary)
     MATCH (ts)-[:SUGGESTS]->(w:MusicalWork)
     WHERE NOT EXISTS { (me)-[:RATED]->(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
     MATCH (w)-[:HAS_RECORDING]->(r:MusicalRecording)
-    OPTIONAL MATCH (w)-[:HAS_SCORE]->(s:MusicalScore)
     WITH w,
-         head(collect(DISTINCT r)) AS rec,
-         head(collect(DISTINCT s)) AS score
+         head(collect(DISTINCT r)) AS rec
     RETURN w.composer AS Composer,
            w.title    AS Work,
            w.genre    AS Genre,
-           rec.channel AS Performer,
-           'https://www.youtube.com/watch?v=' + rec.videoId AS Recording,
-           coalesce(score.url, score.pageUrl, '—') AS Score
-    ORDER BY Composer ASC, Work ASC
+           rec.title  AS Performance,
+           rec.url    AS Recording
     LIMIT 8
 
 # Cheap browse view — chamber-music picks from what you've loved, titles only (no per-work web calls).

@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Impromptu</title>
+<meta name="description" content="A listening room for classical music you have not met: browse the catalogue by era and composer, ask for what you actually want, hear it, rate it, and argue with a guide who has opinions about which performance.">
+<link rel="stylesheet" href="/api/v1/apps-runtime/v1/theme.css">
+<script src="/api/v1/apps-runtime/v1/embabel.js"></script>
+<script src="/api/v1/apps-runtime/gateway.js"></script>
+<script type="application/embabel-app+json">
+{"version":1,"name":"impromptu","requires":{"lenses":[],"views":["ComposersOfEra","MeetAComposerFast","SomethingToHearFast","SomethingToHear","ComposerLineage","MyListening","MyMusicalStances","WhatIHaveHeard"],"realms":["impromptu"],"namespaces":["impromptu","openopus"]}}
+</script>
+<style>
+  /*
+   * Four halls. The old standalone impromptu app shipped eight themes named after concert halls and
+   * it was the most charming thing in it, so four come back here as nothing but variable sets — the
+   * whole theme system is the :root blocks below and one data-hall attribute.
+   *
+   * Every hall is dark. This is a room you listen in, not a document you read, and a white page
+   * behind a player is a browser tab rather than an evening.
+   */
+  :root,
+  :root[data-hall="musikverein"] {
+    --bg: #14100c; --bg-deep: #0d0a07; --surface: #1d1811; --surface-2: #272015;
+    --edge: #39301f; --edge-bright: #5a4a2c;
+    --gold: #d8b27a; --gold-soft: #a98c5f; --ink: #f2ece1; --dim: #9a8f7c;
+    --accent: #c8553d; --ok: #7f9f6a;
+    --hall: "Musikverein";
+  }
+  :root[data-hall="bayreuth"] {
+    --bg: #16090c; --bg-deep: #0e0507; --surface: #211014; --surface-2: #2d161b;
+    --edge: #44202a; --edge-bright: #6b3240;
+    --gold: #d9a38a; --gold-soft: #a9705c; --ink: #f4e9e6; --dim: #a28a85;
+    --accent: #c0485c; --ok: #87a06f;
+    --hall: "Bayreuth";
+  }
+  :root[data-hall="scala"] {
+    --bg: #12110f; --bg-deep: #0b0a09; --surface: #1e1c17; --surface-2: #2a2720;
+    --edge: #3b382d; --edge-bright: #5e5943;
+    --gold: #e3cf9b; --gold-soft: #b1a177; --ink: #f6f1e4; --dim: #9f9883;
+    --accent: #a8402f; --ok: #849d6c;
+    --hall: "La Scala";
+  }
+  :root[data-hall="midnight"] {
+    --bg: #0c0d16; --bg-deep: #07080f; --surface: #151723; --surface-2: #1e2133;
+    --edge: #2b2f47; --edge-bright: #434a6d;
+    --gold: #b9b2e8; --gold-soft: #8a84b8; --ink: #ecebf6; --dim: #8d8aa3;
+    --accent: #e0719a; --ok: #74a79a;
+    --hall: "Midnight";
+  }
+
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); }
+  body {
+    margin: 0; padding: 0 0 56px; color: var(--ink);
+    /* A serif, from the system: a concert programme is set in one, and a webfont request from a
+       file:// or app origin is a dependency this page does not need. */
+    font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Hoefler Text', 'Source Serif Pro', Georgia, serif;
+    font-size: 16px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--gold); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  button, input, select, textarea { font-family: inherit; font-size: 0.95rem; }
+
+  /* ── Masthead ───────────────────────────────────────────────────────────── */
+  header {
+    padding: 26px 28px 18px; border-bottom: 1px solid var(--edge);
+    background:
+      radial-gradient(900px 260px at 14% -40%, rgba(216,178,122,.13), transparent 70%),
+      linear-gradient(180deg, var(--bg-deep), var(--bg));
+  }
+  .masthead { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+  h1 {
+    margin: 0; font-size: 2.1rem; font-weight: 400; letter-spacing: .015em;
+    color: var(--ink);
+  }
+  h1 em { font-style: italic; color: var(--gold); }
+  .tagline { margin: 4px 0 0; color: var(--dim); font-size: .95rem; font-style: italic; }
+  .halls { display: flex; gap: 6px; align-items: center; }
+  .halls span { font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
+  .hall-dot {
+    width: 20px; height: 20px; border-radius: 50%; cursor: pointer; padding: 0;
+    border: 1px solid var(--edge-bright); background: var(--surface-2);
+  }
+  .hall-dot[aria-pressed="true"] { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .hall-dot.musikverein { background: linear-gradient(135deg, #d8b27a, #5a4a2c); }
+  .hall-dot.bayreuth    { background: linear-gradient(135deg, #c0485c, #44202a); }
+  .hall-dot.scala       { background: linear-gradient(135deg, #e3cf9b, #a8402f); }
+  .hall-dot.midnight    { background: linear-gradient(135deg, #b9b2e8, #2b2f47); }
+
+  /* ── Tabs ───────────────────────────────────────────────────────────────── */
+  nav.tabs { display: flex; gap: 2px; padding: 0 28px; border-bottom: 1px solid var(--edge); background: var(--bg-deep); flex-wrap: wrap; }
+  nav.tabs button {
+    background: none; border: 0; border-bottom: 2px solid transparent; color: var(--dim);
+    padding: 12px 16px; cursor: pointer; font-size: .95rem; letter-spacing: .01em;
+  }
+  nav.tabs button:hover { color: var(--ink); }
+  nav.tabs button[aria-selected="true"] { color: var(--gold); border-bottom-color: var(--gold); }
+
+  /* ── Layout ─────────────────────────────────────────────────────────────── */
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 0; align-items: start; }
+  .stage { padding: 24px 28px; min-width: 0; }
+  aside.guide {
+    position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column;
+    border-left: 1px solid var(--edge); background: var(--bg-deep);
+  }
+  @media (max-width: 1040px) {
+    main { grid-template-columns: 1fr; }
+    aside.guide { position: static; height: auto; border-left: 0; border-top: 1px solid var(--edge); }
+  }
+
+  /* ── The player ─────────────────────────────────────────────────────────── */
+  /*
+   * The stage is sized by its CONTENT, not by a 16:9 box. It began as a video frame, and when the
+   * embed turned out to be impossible the empty frame stayed — six hundred pixels of black pushing
+   * every actual control below the fold. Nothing in this page can be allowed to reserve space for a
+   * player that does not exist.
+   */
+  .nowplaying { border: 1px solid var(--edge); border-radius: 10px; background: var(--surface); overflow: hidden; margin-bottom: 22px; }
+  .nowplaying .frame { display: block; }
+  /* 16:9 only when a player is in it. An EMPTY frame must reserve no space: sized unconditionally,
+     it was six hundred pixels of black pushing every control below the fold. */
+  .nowplaying .frame:has(iframe) { aspect-ratio: 16 / 9; background: #000; }
+  .nowplaying iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .nowplaying .idle {
+    width: 100%; display: flex; align-items: center; justify-content: center;
+    color: var(--dim); font-style: italic; text-align: center; padding: 26px 20px;
+    background:
+      radial-gradient(560px 180px at 50% 130%, rgba(216,178,122,.12), transparent 70%),
+      linear-gradient(180deg, var(--bg-deep), var(--surface));
+    border-bottom: 1px solid var(--edge);
+  }
+  /* The stage, in place of the player the CSP will not allow. It has to look deliberate rather than
+     broken, so it is a title card: the work, who is playing, and one way out to hear it. */
+  .nowplaying .idle > div { max-width: 46ch; }
+  .stage-work { font-size: 1.45rem; color: var(--ink); font-style: normal; line-height: 1.25; }
+  .stage-perf { font-size: .9rem; color: var(--gold); margin-top: 7px; font-style: normal; }
+  .stage-go { margin-top: 18px; }
+  .stage-why { margin-top: 11px; font-size: .74rem; color: var(--dim); font-style: normal; }
+  .nowplaying .bar { padding: 13px 16px; display: flex; gap: 14px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+  .np-what { min-width: 0; }
+  .np-work { font-size: 1.1rem; color: var(--ink); }
+  .np-perf { font-size: .82rem; color: var(--dim); margin-top: 3px; }
+  .np-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  /* ── Panels and cards ───────────────────────────────────────────────────── */
+  section.panel { display: none; }
+  section.panel[aria-hidden="false"] { display: block; }
+  h2 {
+    font-size: .76rem; font-weight: 600; letter-spacing: .17em; text-transform: uppercase;
+    color: var(--gold-soft); margin: 26px 0 12px; font-family: system-ui, sans-serif;
+  }
+  h2:first-child { margin-top: 0; }
+  .hint { color: var(--dim); font-size: .88rem; margin: -6px 0 14px; font-style: italic; }
+
+  .grid { display: grid; gap: 12px; }
+  .grid.works { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+  .grid.people { grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); }
+
+  .card {
+    border: 1px solid var(--edge); border-radius: 9px; background: var(--surface);
+    padding: 14px 15px; display: flex; flex-direction: column; gap: 9px; min-width: 0;
+  }
+  .card.clickable { cursor: pointer; }
+  .card.clickable:hover { border-color: var(--edge-bright); background: var(--surface-2); }
+  .card .title { font-size: 1.02rem; color: var(--ink); line-height: 1.3; }
+  .card .who { font-size: .85rem; color: var(--gold); }
+  .card .meta { font-size: .76rem; color: var(--dim); font-family: system-ui, sans-serif; }
+
+  .badge {
+    display: inline-block; font-family: system-ui, sans-serif; font-size: .64rem; font-weight: 600;
+    letter-spacing: .09em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px;
+    border: 1px solid var(--edge-bright); color: var(--gold-soft); white-space: nowrap;
+  }
+  .badge.period { color: var(--ok); border-color: var(--ok); }
+  .badge.heard { color: var(--dim); }
+  .badges { display: flex; gap: 5px; flex-wrap: wrap; }
+
+  .portrait {
+    width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 6px;
+    background: var(--surface-2); border: 1px solid var(--edge); display: block;
+  }
+  .portrait.blank { display: flex; align-items: center; justify-content: center; font-size: 1.6rem; color: var(--gold-soft); }
+
+  /* ── Controls ───────────────────────────────────────────────────────────── */
+  .btn {
+    background: var(--surface-2); color: var(--ink); border: 1px solid var(--edge-bright);
+    border-radius: 6px; padding: 7px 13px; cursor: pointer; font-size: .88rem;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn.primary { background: linear-gradient(160deg, rgba(216,178,122,.22), rgba(216,178,122,.06)); border-color: var(--gold); color: var(--gold); }
+  .btn.play::before { content: "▶"; margin-right: 6px; font-size: .8em; }
+
+  .ask { display: flex; gap: 9px; align-items: stretch; flex-wrap: wrap; margin-bottom: 8px; }
+  .ask input[type="text"] {
+    flex: 1 1 320px; min-width: 0; background: var(--surface); color: var(--ink);
+    border: 1px solid var(--edge); border-radius: 6px; padding: 10px 12px;
+  }
+  .ask input:focus, select:focus, textarea:focus { outline: 1px solid var(--gold); border-color: var(--gold); }
+  select {
+    background: var(--surface); color: var(--ink); border: 1px solid var(--edge);
+    border-radius: 6px; padding: 9px 11px;
+  }
+  .suggestions { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 18px; }
+  .chip {
+    background: none; border: 1px dashed var(--edge-bright); color: var(--dim);
+    border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: .82rem; font-style: italic;
+  }
+  .chip:hover { color: var(--gold); border-color: var(--gold); border-style: solid; }
+
+  /* The 1-10 rating. Ten stars, because the realm's ratings are 1-10 and five halves would be a lie. */
+  .rate { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .stars { display: inline-flex; gap: 1px; }
+  .star { cursor: pointer; color: var(--edge-bright); font-size: 1.05rem; line-height: 1; user-select: none; }
+  .star.on { color: var(--gold); }
+  .rate-label { font-family: system-ui, sans-serif; font-size: .72rem; color: var(--dim); min-width: 62px; }
+
+  /* ── The guide panel ────────────────────────────────────────────────────── */
+  .guide-head { padding: 16px 18px 13px; border-bottom: 1px solid var(--edge); }
+  .guide-name { font-size: 1.15rem; color: var(--gold); }
+  .guide-tag { font-size: .8rem; color: var(--dim); font-style: italic; margin-top: 3px; }
+  .guide-thread { flex: 1 1 auto; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 15px; min-height: 220px; }
+  .turn { font-size: .93rem; }
+  .turn.them { color: var(--ink); }
+  .turn.them .lead { color: var(--dim); font-family: system-ui, sans-serif; font-size: .66rem; letter-spacing: .13em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .turn.him { color: var(--ink); border-left: 2px solid var(--gold-soft); padding-left: 12px; }
+  .turn.him .lead { color: var(--gold-soft); font-family: system-ui, sans-serif; font-size: .66rem; letter-spacing: .13em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .turn p { margin: 0 0 9px; }
+  .turn p:last-child { margin-bottom: 0; }
+  .turn em { color: var(--gold-soft); }
+  .grounded {
+    font-family: system-ui, sans-serif; font-size: .67rem; color: var(--dim);
+    margin-top: 7px; padding-top: 6px; border-top: 1px dotted var(--edge);
+  }
+  .guide-foot { border-top: 1px solid var(--edge); padding: 12px 18px 16px; display: flex; flex-direction: column; gap: 9px; }
+  .guide-foot textarea {
+    width: 100%; background: var(--surface); color: var(--ink); border: 1px solid var(--edge);
+    border-radius: 6px; padding: 9px 11px; resize: vertical; min-height: 58px;
+  }
+  .guide-foot .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+
+  /* ── State messages ─────────────────────────────────────────────────────── */
+  .note { color: var(--dim); font-style: italic; padding: 14px 0; }
+  .note.work { color: var(--gold-soft); }
+  .error {
+    color: var(--accent); border: 1px solid var(--accent); border-radius: 7px;
+    padding: 11px 13px; font-size: .88rem; background: rgba(192,72,92,.07);
+  }
+  .error code { font-family: ui-monospace, Menlo, monospace; font-size: .85em; }
+  table.rows { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  table.rows th {
+    text-align: left; font-family: system-ui, sans-serif; font-size: .66rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--dim); font-weight: 600;
+    border-bottom: 1px solid var(--edge); padding: 7px 10px 7px 0;
+  }
+  table.rows td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
+  .figures { display: flex; gap: 26px; flex-wrap: wrap; margin-bottom: 6px; }
+  .figure .n { font-size: 1.9rem; color: var(--gold); line-height: 1.1; }
+  .figure .l { font-family: system-ui, sans-serif; font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+  footer { padding: 22px 28px; color: var(--dim); font-size: .78rem; border-top: 1px solid var(--edge); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="masthead">
+    <div>
+      <h1>Im<em>promptu</em></h1>
+      <p class="tagline">Music you have not met yet — and an argument about which performance.</p>
+    </div>
+    <div class="halls" role="group" aria-label="Hall">
+      <span>Hall</span>
+      <button class="hall-dot musikverein" data-hall="musikverein" title="Musikverein — gold on walnut" aria-pressed="true"></button>
+      <button class="hall-dot bayreuth" data-hall="bayreuth" title="Bayreuth — wine and dust" aria-pressed="false"></button>
+      <button class="hall-dot scala" data-hall="scala" title="La Scala — cream and scarlet" aria-pressed="false"></button>
+      <button class="hall-dot midnight" data-hall="midnight" title="Midnight — a late recital" aria-pressed="false"></button>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-panel="ask" aria-selected="true">Ask for something</button>
+  <button role="tab" data-panel="browse" aria-selected="false">Browse the catalogue</button>
+  <button role="tab" data-panel="taste" aria-selected="false">What you love</button>
+  <button role="tab" data-panel="record" aria-selected="false">Your record</button>
+</nav>
+
+<main>
+  <div class="stage">
+    <!-- The player sits above every panel: whatever you are doing, what is playing stays put. -->
+    <div class="nowplaying">
+      <div class="frame" id="frame">
+        <div class="idle">Nothing playing. Ask for something, or walk into an era.</div>
+      </div>
+      <!-- Hidden until something is actually on the stage: an empty bar under an empty stage is two
+           rows of nothing at the top of the page. -->
+      <div class="bar" id="npBar" hidden>
+        <div class="np-what">
+          <div class="np-work" id="npWork">—</div>
+          <div class="np-perf" id="npPerf"></div>
+        </div>
+        <div class="np-actions" id="npActions"></div>
+      </div>
+    </div>
+
+    <!-- ── Ask ──────────────────────────────────────────────────────────── -->
+    <section class="panel" id="panel-ask" aria-hidden="false">
+      <h2>Say what you want</h2>
+      <p class="hint">In your own words — a mood, a length, a form, an appetite. Nothing here needs you to have rated anything.</p>
+      <form class="ask" id="askForm">
+        <input type="text" id="askInput" placeholder="forty minutes, something I have not heard, and not soothing"
+               value="forty minutes, something I have not heard, and not soothing" aria-label="What you want to hear">
+        <button class="btn primary" type="submit" id="askGo">Find it</button>
+        <select id="askMode" aria-label="How fast">
+          <option value="fast">Titles only — quick</option>
+          <option value="listen">With a recording — slower</option>
+        </select>
+      </form>
+      <div class="suggestions" id="askChips"></div>
+      <div id="askOut"></div>
+    </section>
+
+    <!-- ── Browse ───────────────────────────────────────────────────────── -->
+    <section class="panel" id="panel-browse" aria-hidden="true">
+      <h2>Walk in by era</h2>
+      <p class="hint">The catalogue's own composers, not a recommendation — facts, one call, no model. Pick a face.</p>
+      <div class="ask">
+        <select id="eraPick" aria-label="Era"></select>
+        <button class="btn" id="eraGo" type="button">Show composers</button>
+      </div>
+      <div id="eraOut"></div>
+      <div id="composerOut"></div>
+    </section>
+
+    <!-- ── Taste ────────────────────────────────────────────────────────── -->
+    <section class="panel" id="panel-taste" aria-hidden="true">
+      <h2>What you love, and where it leads</h2>
+      <p class="hint">These need ratings. If they are empty, rate a few works first — or just ask for something instead.</p>
+      <div class="ask">
+        <button class="btn" id="tasteGo" type="button">From works you loved</button>
+        <button class="btn" id="tasteWholeGo" type="button">From your taste as a whole</button>
+      </div>
+      <div id="tasteOut"></div>
+    </section>
+
+    <!-- ── Record ───────────────────────────────────────────────────────── -->
+    <section class="panel" id="panel-record" aria-hidden="true">
+      <h2>Where you have got to</h2>
+      <div id="levelOut"></div>
+      <h2>What you have said</h2>
+      <p class="hint">Boundaries and openings, by form, period, instrument or practice. Maestro writes these down as you talk.</p>
+      <div id="stanceOut"></div>
+      <h2>What you have heard</h2>
+      <div id="heardOut"></div>
+    </section>
+  </div>
+
+  <!-- ── The guide ──────────────────────────────────────────────────────── -->
+  <aside class="guide">
+    <div class="guide-head">
+      <div class="guide-name" id="guideName">Maestro</div>
+      <div class="guide-tag" id="guideTag">Loading…</div>
+    </div>
+    <div class="guide-thread" id="thread"></div>
+    <div class="guide-foot">
+      <textarea id="guideInput" placeholder="Ask him about what is on screen — or tell him what you last heard that got to you." aria-label="Ask the guide"></textarea>
+      <div class="row">
+        <button class="btn" id="stopPush" type="button" title="He stops making a case. You still get the music.">Stop pushing me</button>
+        <button class="btn primary" id="guideGo" type="button">Ask</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  Works and composers from <a href="https://openopus.org/" target="_blank" rel="noopener noreferrer">Open Opus</a>;
+  recordings found on YouTube; scores on <a href="https://imslp.org/" target="_blank" rel="noopener noreferrer">IMSLP</a>.
+  Maestro's opinions are his own and are written down in the realm, where you can read them.
+</footer>
+
+<div id="embabel-badge" style="position:fixed;bottom:0;left:0;right:0;text-align:center;padding:6px 0;background:rgba(10,10,15,0.9);border-top:1px solid rgba(99,192,245,0.2);font-size:0.75rem;color:#6b7280;z-index:9999;pointer-events:none;">
+  Created with <a href="https://worlds.embabel.com" target="_blank" rel="noopener noreferrer" style="color:#63c0f5;text-decoration:none;pointer-events:auto;">Embabel Worlds</a>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ── Halls ──────────────────────────────────────────────────────────────
+   * The chosen hall is a per-viewer convenience and nothing else, so it lives in localStorage and
+   * every access is wrapped: a private window or blocked site data throws on read, and a page that
+   * cannot remember your hall should still open in one.
+   */
+  var HALL_KEY = "impromptu.hall";
+  function readHall() {
+    try { return window.localStorage.getItem(HALL_KEY); } catch (e) { return null; }
+  }
+  function writeHall(h) {
+    try { window.localStorage.setItem(HALL_KEY, h); } catch (e) { /* nothing to do */ }
+  }
+  function setHall(h) {
+    document.documentElement.setAttribute("data-hall", h);
+    writeHall(h);
+    Array.prototype.forEach.call(document.querySelectorAll(".hall-dot"), function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-hall") === h));
+    });
+  }
+  setHall(readHall() || "musikverein");
+  Array.prototype.forEach.call(document.querySelectorAll(".hall-dot"), function (b) {
+    b.addEventListener("click", function () { setHall(b.getAttribute("data-hall")); });
+  });
+
+  /* ── Tabs ─────────────────────────────────────────────────────────────── */
+  var tabs = Array.prototype.slice.call(document.querySelectorAll("nav.tabs button"));
+  function showPanel(name) {
+    tabs.forEach(function (t) { t.setAttribute("aria-selected", String(t.getAttribute("data-panel") === name)); });
+    Array.prototype.forEach.call(document.querySelectorAll("section.panel"), function (p) {
+      p.setAttribute("aria-hidden", String(p.id !== "panel-" + name));
+    });
+    if (name === "record") loadRecord();
+  }
+  tabs.forEach(function (t) { t.addEventListener("click", function () { showPanel(t.getAttribute("data-panel")); }); });
+
+  /* ── Host plumbing ────────────────────────────────────────────────────── */
+  function runView(name, args) {
+    return window.embabel.views.invoke(name, args || {}).then(function (r) {
+      if (!r) return [];
+      if (Array.isArray(r)) return r;
+      return r.rows || r.data || [];
+    });
+  }
+  var gw = window.gateway;
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = String(text);
+    return e;
+  }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+  function working(node, msg) {
+    clear(node);
+    node.appendChild(el("div", "note work", msg));
+  }
+  /*
+   * A failure is SHOWN, with what failed in it. An app over a realm that needs another realm's search
+   * key fails in exactly one interesting way — brave is missing — and swallowing that into an empty
+   * panel is how an afternoon gets lost.
+   */
+  function failed(node, what, e) {
+    clear(node);
+    var box = el("div", "error");
+    box.appendChild(el("strong", null, what + " failed. "));
+    box.appendChild(document.createTextNode((e && e.message) ? e.message : String(e)));
+    node.appendChild(box);
+  }
+  function empty(node, msg) { clear(node); node.appendChild(el("div", "note", msg)); }
+
+  /* ── Opening a recording ──────────────────────────────────────────────────
+   * Playback leaves this page, and that is not a design choice — it is what the app runtime permits.
+   * Every app is served with a fixed Content-Security-Policy that sets no `frame-src` and no
+   * `media-src`, so both fall back to `default-src 'self'`: a YouTube iframe is refused, and so is a
+   * remote <audio> or <video> element. There is no embedded player to be had here.
+   *
+   * Leaving is itself three different things depending on where the page is open, which is why this
+   * is a chain rather than a link. In the Me desktop app a renderer must go out through the preload
+   * bridge — an Electron window that navigates away from its own page has no way back, so `_blank` is
+   * refused and does nothing at all. In a browser tab `window.open` is right, and a popup blocker can
+   * still refuse it. Only the last rung navigates this page, and only because a link that silently
+   * fails is worse than one that costs you your place.
+   */
+  function openExternal(url) {
+    if (!url) return false;
+    try {
+      if (window.me && typeof window.me.openExternal === "function") { window.me.openExternal(url); return true; }
+    } catch (e) { /* fall through to the browser */ }
+    try {
+      var w = window.open(url, "_blank", "noopener,noreferrer");
+      if (w) return true;
+    } catch (e) { /* popup refused */ }
+    try { window.location.href = url; return true; } catch (e) { return false; }
+  }
+
+  /*
+   * Every external anchor on the page, intercepted once, here.
+   *
+   * The anchors stay anchors — they keep their href, their middle-click, their right-click-and-copy,
+   * and they read correctly to a screen reader — but the CLICK goes through the chain above instead of
+   * through `target="_blank"`, which does nothing at all in the Me desktop app. One delegated listener
+   * covers the footer credits, anything a lens renders, and anything Maestro's markdown produces,
+   * including links that did not exist when this ran.
+   */
+  document.addEventListener("click", function (ev) {
+    var a = ev.target && ev.target.closest ? ev.target.closest("a[href]") : null;
+    if (!a) return;
+    var href = a.getAttribute("href") || "";
+    if (!/^https?:\/\//i.test(href)) return;      /* in-page and relative links are the host's business */
+    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button !== 0) return;  /* respect a deliberate modifier */
+    ev.preventDefault();
+    openExternal(href);
+  });
+  /* A marker the served-app test asserts on: without this, nothing external opens anywhere. */
+  document.documentElement.setAttribute("data-external-links", "intercepted");
+
+  /** A button that opens a recording, and SAYS SO if it could not. */
+  function listenButton(url, label) {
+    var b = el("button", "btn primary play", label || "Listen");
+    b.addEventListener("click", function () {
+      if (!openExternal(url)) {
+        b.textContent = "Could not open — copy the link";
+        b.classList.remove("primary");
+      }
+    });
+    b.setAttribute("title", url);
+    return b;
+  }
+
+  /* ── The stage ────────────────────────────────────────────────────────── */
+  var playing = null; /* { workId, title, composer, url, performance } */
+
+  /** The video id out of a watch URL. Never assembled from a guess: no id, no player. */
+  function videoId(url) {
+    var m = /[?&]v=([A-Za-z0-9_-]{6,})/.exec(url || "");
+    return m ? m[1] : null;
+  }
+
+  /*
+   * The player is BACK, and it plays in the page.
+   *
+   * It was a title card with a link out because every app was served with a CSP that declared no
+   * `frame-src`, so a YouTube iframe fell through to `default-src 'self'` and was refused — a
+   * listening app that could not play a note (me#2372). That policy now names the video origins, so
+   * an embed is permitted rather than merely attempted. The link out stays beside it for anyone who
+   * wants the full site, and a recording with no parseable id still degrades to the card.
+   */
+  function play(work) {
+    playing = work;
+    var frame = document.getElementById("frame");
+    clear(frame);
+
+    var id = work.url ? videoId(work.url) : null;
+    if (id) {
+      var f = document.createElement("iframe");
+      f.setAttribute("src", "https://www.youtube-nocookie.com/embed/" + id + "?rel=0&autoplay=1");
+      f.setAttribute("title", [work.composer, work.title].filter(Boolean).join(" — "));
+      f.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture");
+      f.setAttribute("allowfullscreen", "");
+      f.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+      frame.appendChild(f);
+    } else {
+      var stage = el("div", "idle");
+      if (work.url) {
+        var inner = el("div");
+        inner.appendChild(el("div", "stage-work", [work.composer, work.title].filter(Boolean).join(" — ")));
+        if (work.performance) inner.appendChild(el("div", "stage-perf", work.performance));
+        var row = el("div", "stage-go");
+        row.appendChild(listenButton(work.url, "Listen on YouTube ↗"));
+        inner.appendChild(row);
+        inner.appendChild(el("div", "stage-why", "No video id in that link, so it opens on YouTube instead."));
+        stage.appendChild(inner);
+      } else {
+        stage.appendChild(el("div", null, "No recording found for this one yet. Ask Maestro which performance to look for."));
+      }
+      frame.appendChild(stage);
+    }
+
+    document.getElementById("npBar").hidden = false;
+    document.getElementById("npWork").textContent =
+      [work.composer, work.title].filter(Boolean).join(" — ") || "—";
+    document.getElementById("npPerf").textContent = work.performance || "";
+
+    var actions = document.getElementById("npActions");
+    clear(actions);
+    actions.appendChild(ratingWidget(work));
+    if (work.url) {
+      var copy = el("button", "btn", "Copy link");
+      copy.addEventListener("click", function () {
+        var done = function () { copy.textContent = "Copied ✓"; };
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(work.url).then(done, function () { copy.textContent = work.url; });
+          } else { copy.textContent = work.url; }
+        } catch (e) { copy.textContent = work.url; }
+      });
+      actions.appendChild(copy);
+    }
+    var done = el("button", "btn", "I heard it through");
+    done.addEventListener("click", function () {
+      done.disabled = true;
+      done.textContent = "Noting…";
+      gw.impromptu.recordListen({
+        workId: work.workId || "", title: work.title || "", composer: work.composer || "",
+        url: work.url || "", performance: work.performance || "", source: "app", finished: true
+      }).then(function () { done.textContent = "Heard through ✓"; })
+        .catch(function (e) { done.disabled = false; done.textContent = "Could not note that"; console.error(e); });
+    });
+    actions.appendChild(done);
+
+    /*
+     * Pressing play IS the listening record. Recorded here rather than when the work is offered,
+     * because a work offered and ignored is a different fact from one actually started —
+     * `finished: false` until they say otherwise.
+     */
+    if (work.workId) {
+      gw.impromptu.recordListen({
+        workId: work.workId, title: work.title || "", composer: work.composer || "",
+        url: work.url || "", performance: work.performance || "", source: "app", finished: false
+      }).catch(function (e) { console.error("could not record the listen", e); });
+    }
+  }
+
+  /** A 1-10 rating, pre-filled from what they already said. */
+  function ratingWidget(work) {
+    var wrap = el("div", "rate");
+    var stars = el("div", "stars");
+    var label = el("span", "rate-label");
+    var current = 0;
+    var els = [];
+    function paint(n) {
+      els.forEach(function (s, i) { s.classList.toggle("on", i < n); });
+      label.textContent = n ? n + "/10" : "Rate it";
+    }
+    function submit(n) {
+      current = n; paint(n); label.textContent = "Saving…";
+      gw.impromptu.rateWork({
+        workId: work.workId || "", rating: n, title: work.title || "",
+        composer: work.composer || "", composerId: work.composerId || "",
+        genre: work.genre || "", searchQuery: work.searchQuery || ""
+      }).then(function () { label.textContent = n + "/10 ✓"; })
+        .catch(function (e) { label.textContent = "Failed"; console.error(e); });
+    }
+    for (var i = 1; i <= 10; i++) {
+      (function (n) {
+        var s = el("span", "star", "★");
+        s.addEventListener("mouseenter", function () { paint(n); });
+        s.addEventListener("click", function () { submit(n); });
+        stars.appendChild(s);
+        els.push(s);
+      })(i);
+    }
+    stars.addEventListener("mouseleave", function () { paint(current); });
+    wrap.appendChild(stars);
+    wrap.appendChild(label);
+    paint(0);
+
+    if (work.workId) {
+      gw.kg.query({
+        cypher: "MATCH (me:AssistantUser)-[:RATED]->(r:MusicalWorkRating) WHERE r.workId = $id RETURN r.rating AS rating LIMIT 1",
+        params: JSON.stringify({ id: String(work.workId) })
+      }).then(function (res) {
+        var rows = (res && res.rows) ? res.rows : (res || []);
+        if (rows[0] && rows[0].rating) { current = Number(rows[0].rating); paint(current); }
+      }).catch(function () { /* no rating yet is the normal case */ });
+    }
+    return wrap;
+  }
+
+  /* ── Work cards ───────────────────────────────────────────────────────── */
+  /** What is on screen, handed to the guide so "the second one" means something. */
+  var inView = [];
+
+  function workCard(w) {
+    var card = el("div", "card");
+    card.appendChild(el("div", "title", w.title || "Untitled"));
+    if (w.composer) card.appendChild(el("div", "who", w.composer));
+
+    var badges = el("div", "badges");
+    if (w.genre) badges.appendChild(el("span", "badge", w.genre));
+    if (w.periodInstruments) badges.appendChild(el("span", "badge period", "period instruments"));
+    if (w.heard) badges.appendChild(el("span", "badge heard", "you have heard this"));
+    if (badges.childNodes.length) card.appendChild(badges);
+
+    if (w.performance) card.appendChild(el("div", "meta", w.performance));
+
+    var row = el("div", "np-actions");
+    if (w.url) {
+      var b = el("button", "btn play primary", "Listen");
+      b.addEventListener("click", function () { play(w); window.scrollTo({ top: 0, behavior: "smooth" }); });
+      row.appendChild(b);
+    } else {
+      var find = el("button", "btn play", "Find a recording");
+      find.addEventListener("click", function () {
+        find.disabled = true; find.textContent = "Looking…";
+        findRecording(w).then(function (rec) {
+          if (!rec) { find.textContent = "None found"; return; }
+          w.url = rec.url; w.performance = rec.title;
+          play(w);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }).catch(function (e) {
+          find.disabled = false;
+          find.textContent = "Search failed";
+          console.error(e);
+        });
+      });
+      row.appendChild(find);
+    }
+    card.appendChild(row);
+    return card;
+  }
+
+  /**
+   * One recording for a work, via the research realm's Brave search. Not a graph join here because
+   * this is a single work on demand; HAS_RECORDING is what a whole list uses.
+   */
+  function findRecording(w) {
+    var q = (w.searchQuery || [w.composer, w.title].filter(Boolean).join(" ")) + " site:youtube.com/watch";
+    return gw.brave.webSearch({ q: q, count: 5 }).then(function (res) {
+      var hits = ((res && res.web && res.web.results) || []).filter(function (r) {
+        return r.url && r.url.indexOf("youtube.com/watch") >= 0;
+      });
+      return hits.length ? { url: hits[0].url, title: hits[0].title } : null;
+    });
+  }
+
+  function renderWorks(node, rows, mapper) {
+    clear(node);
+    if (!rows.length) { empty(node, "Nothing came back. Try asking for something different."); return; }
+    var grid = el("div", "grid works");
+    inView = [];
+    rows.forEach(function (r) {
+      var w = mapper(r);
+      inView.push(w);
+      grid.appendChild(workCard(w));
+    });
+    node.appendChild(grid);
+  }
+
+  /* ── Ask ──────────────────────────────────────────────────────────────── */
+  var CHIPS = [
+    "something difficult, I want to work at it",
+    "twenty minutes before bed, but not wallpaper",
+    "a string quartet that is not Beethoven",
+    "Baroque, on period instruments, written by someone I have not heard of",
+    "the loudest thing you have",
+    "something written in the last thirty years"
+  ];
+  var chips = document.getElementById("askChips");
+  CHIPS.forEach(function (c) {
+    var b = el("button", "chip", c);
+    b.addEventListener("click", function () {
+      document.getElementById("askInput").value = c;
+      document.getElementById("askForm").dispatchEvent(new Event("submit"));
+    });
+    chips.appendChild(b);
+  });
+
+  document.getElementById("askForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var ask = document.getElementById("askInput").value.trim();
+    if (!ask) return;
+    var listen = document.getElementById("askMode").value === "listen";
+    var out = document.getElementById("askOut");
+    var go = document.getElementById("askGo");
+    go.disabled = true;
+    working(out, listen
+      ? "Generating works for that, then finding a recording for each — a minute or so on a cold cache."
+      : "Generating works for that — a few seconds.");
+    runView(listen ? "SomethingToHear" : "SomethingToHearFast", { ask: ask })
+      .then(function (rows) {
+        renderWorks(out, rows, function (r) {
+          return {
+            workId: r.WorkId || "", title: r.Work, composer: r.Composer, genre: r.Genre,
+            url: r.Recording || "", performance: r.Performance || "",
+            searchQuery: [r.Composer, r.Work].filter(Boolean).join(" ")
+          };
+        });
+      })
+      .catch(function (e) { failed(out, "That request", e); })
+      .then(function () { go.disabled = false; });
+  });
+
+  /* ── Browse ───────────────────────────────────────────────────────────── */
+  var ERAS = ["Medieval", "Renaissance", "Baroque", "Classical", "Early Romantic",
+              "Romantic", "Late Romantic", "Post-War", "20th Century", "21st Century"];
+  var eraPick = document.getElementById("eraPick");
+  ERAS.forEach(function (e) {
+    var o = document.createElement("option");
+    o.value = e; o.textContent = e;
+    if (e === "Baroque") o.selected = true;
+    eraPick.appendChild(o);
+  });
+
+  function loadEra() {
+    var era = eraPick.value;
+    var out = document.getElementById("eraOut");
+    clear(document.getElementById("composerOut"));
+    working(out, "Reading the catalogue for the " + era + "…");
+    runView("ComposersOfEra", { era: era }).then(function (rows) {
+      clear(out);
+      if (!rows.length) { empty(out, "The catalogue has nobody under that spelling."); return; }
+      var grid = el("div", "grid people");
+      rows.forEach(function (r) {
+        var card = el("div", "card clickable");
+        if (r.Portrait) {
+          var img = document.createElement("img");
+          img.className = "portrait";
+          img.setAttribute("src", r.Portrait);
+          img.setAttribute("alt", r.Composer || "");
+          img.setAttribute("loading", "lazy");
+          img.addEventListener("error", function () { img.remove(); });
+          card.appendChild(img);
+        }
+        card.appendChild(el("div", "title", r.ShortName || r.Composer));
+        card.appendChild(el("div", "meta", [yearOf(r.Born), yearOf(r.Died)].filter(Boolean).join("–")));
+        if (r.PeriodInstruments) {
+          var b = el("div", "badges");
+          b.appendChild(el("span", "badge period", "period instruments"));
+          card.appendChild(b);
+        }
+        card.addEventListener("click", function () { loadComposer(r); });
+        grid.appendChild(card);
+      });
+      out.appendChild(grid);
+    }).catch(function (e) { failed(out, "The catalogue read", e); });
+  }
+  function yearOf(d) { var m = /^(\d{4})/.exec(String(d || "")); return m ? m[1] : ""; }
+  document.getElementById("eraGo").addEventListener("click", loadEra);
+  eraPick.addEventListener("change", loadEra);
+
+  function loadComposer(c) {
+    var out = document.getElementById("composerOut");
+    working(out, "The catalogue's best-known works by " + (c.ShortName || c.Composer) + "…");
+    runView("MeetAComposerFast", { composerId: String(c.ComposerId || "") }).then(function (rows) {
+      clear(out);
+      var h = el("h2", null, (c.Composer || c.ShortName || "") + " — where to start");
+      out.appendChild(h);
+      if (c.PeriodInstruments) {
+        out.appendChild(el("p", "hint",
+          "Written before 1850: a period-instrument performance is closer to what was on the page, and usually faster and stranger than you expect."));
+      }
+      var body = el("div");
+      out.appendChild(body);
+      renderWorks(body, rows, function (r) {
+        return {
+          workId: r.WorkId, title: r.Work, composer: c.ShortName || r.Composer,
+          composerId: String(c.ComposerId || ""), genre: r.Genre,
+          searchQuery: r.SearchQuery || [c.ShortName, r.Work].filter(Boolean).join(" "),
+          periodInstruments: !!r.PeriodInstruments, url: "", performance: ""
+        };
+      });
+      /* The line backwards, which is where a browse turns into a discovery. */
+      var lin = el("div");
+      out.appendChild(lin);
+      runView("ComposerLineage", { composer: c.ShortName || c.Composer }).then(function (ls) {
+        if (!ls.length) return;
+        lin.appendChild(el("h2", null, "Generally held to have learned from"));
+        lin.appendChild(el("p", "hint", "A scholarly view rather than a catalogue fact — generated, and worth reading as an argument."));
+        var t = el("table", "rows");
+        var thead = el("tr");
+        ["Composer", "Period", "Lived"].forEach(function (x) { thead.appendChild(el("th", null, x)); });
+        t.appendChild(thead);
+        ls.forEach(function (l) {
+          var tr = el("tr");
+          tr.appendChild(el("td", null, l.Influence));
+          tr.appendChild(el("td", null, l.Period || ""));
+          tr.appendChild(el("td", null, [yearOf(l.Born), yearOf(l.Died)].filter(Boolean).join("–")));
+          t.appendChild(tr);
+        });
+        lin.appendChild(t);
+      }).catch(function () { /* lineage is a bonus; its absence is not an error worth a box */ });
+    }).catch(function (e) { failed(out, "That composer's works", e); });
+  }
+
+  /* ── Taste ────────────────────────────────────────────────────────────── */
+  function loadTaste(view, msg) {
+    var out = document.getElementById("tasteOut");
+    working(out, msg);
+    runView(view, {}).then(function (rows) {
+      if (!rows.length) {
+        empty(out, "Nothing yet — this one is built from works you rated 8 or more. Rate a few, or use “Ask for something” instead, which needs no history.");
+        return;
+      }
+      renderWorks(out, rows, function (r) {
+        return {
+          workId: r.WorkId || "", title: r.Work, composer: r.Composer, genre: r.Genre,
+          url: r.Recording || "", performance: r.Performance || "",
+          searchQuery: [r.Composer, r.Work].filter(Boolean).join(" ")
+        };
+      });
+    }).catch(function (e) { failed(out, "That recommendation", e); });
+  }
+  document.getElementById("tasteGo").addEventListener("click", function () {
+    loadTaste("WorkRecommendations", "Generating from the works you loved, and finding a recording for each — up to a minute.");
+  });
+  document.getElementById("tasteWholeGo").addEventListener("click", function () {
+    loadTaste("TasteBasedRecommendations", "Distilling your taste, then generating against it — up to a minute.");
+  });
+
+  /* ── Record ───────────────────────────────────────────────────────────── */
+  var recordLoaded = false;
+  function loadRecord() {
+    if (recordLoaded) return;
+    recordLoaded = true;
+
+    var lvl = document.getElementById("levelOut");
+    working(lvl, "Reading your record…");
+    runView("MyListening", {}).then(function (rows) {
+      clear(lvl);
+      var r = rows[0] || {};
+      var figs = el("div", "figures");
+      [[r.Knowledge || "not yet read", "how much you know"],
+       [(r.ChallengeAppetite || 0) + "/10", "appetite for difficulty"],
+       [r.WorksRated || 0, "works rated"],
+       [r.WorksHeard || 0, "works heard"],
+       [r.StancesStated || 0, "things you have said"]].forEach(function (p) {
+        var f = el("div", "figure");
+        f.appendChild(el("div", "n", p[0]));
+        f.appendChild(el("div", "l", p[1]));
+        figs.appendChild(f);
+      });
+      lvl.appendChild(figs);
+      lvl.appendChild(el("p", "hint",
+        "Maestro revises these from what you say, not from what you claim — and they change what a good recommendation is."));
+    }).catch(function (e) { failed(lvl, "Your record", e); });
+
+    var st = document.getElementById("stanceOut");
+    runView("MyMusicalStances", {}).then(function (rows) {
+      clear(st);
+      if (!rows.length) { empty(st, "Nothing yet. Tell Maestro what you cannot stand and he will write it down."); return; }
+      var t = el("table", "rows");
+      var head = el("tr");
+      ["Stance", "What", "Kind", "Because"].forEach(function (x) { head.appendChild(el("th", null, x)); });
+      t.appendChild(head);
+      rows.forEach(function (r) {
+        var tr = el("tr");
+        var sc = el("td");
+        sc.appendChild(el("span", "badge" + (r.Stance === "curious" ? " period" : ""), r.Stance));
+        tr.appendChild(sc);
+        tr.appendChild(el("td", null, r.Value));
+        tr.appendChild(el("td", null, r.Dimension));
+        tr.appendChild(el("td", null, r.Because || ""));
+        t.appendChild(tr);
+      });
+      st.appendChild(t);
+    }).catch(function (e) { failed(st, "Your stances", e); });
+
+    var hd = document.getElementById("heardOut");
+    runView("WhatIHaveHeard", {}).then(function (rows) {
+      clear(hd);
+      if (!rows.length) { empty(hd, "Nothing played yet."); return; }
+      var t = el("table", "rows");
+      var head = el("tr");
+      ["When", "Work", "Performance", "Through?"].forEach(function (x) { head.appendChild(el("th", null, x)); });
+      t.appendChild(head);
+      rows.forEach(function (r) {
+        var tr = el("tr");
+        tr.appendChild(el("td", null, String(r.Heard || "").slice(0, 16).replace("T", " ")));
+        tr.appendChild(el("td", null, [r.Composer, r.Work].filter(Boolean).join(" — ")));
+        var pc = el("td");
+        if (r.Recording) {
+          var a = el("a", null, r.Performance || "the recording");
+          a.setAttribute("href", r.Recording);
+          a.setAttribute("target", "_blank");
+          a.setAttribute("rel", "noopener noreferrer");
+          pc.appendChild(a);
+        } else pc.textContent = r.Performance || "";
+        tr.appendChild(pc);
+        tr.appendChild(el("td", null, r.HeardThrough ? "yes" : "no"));
+        t.appendChild(tr);
+      });
+      hd.appendChild(t);
+    }).catch(function (e) { failed(hd, "Your listening history", e); });
+  }
+
+  /* ── The guide ────────────────────────────────────────────────────────── */
+  var history = [];
+  var askedToStop = false;
+  var conversation = "impromptu-app-" + Math.random().toString(36).slice(2, 10);
+  var thread = document.getElementById("thread");
+
+  /*
+   * The reply is markdown from a model, so it is NOT assigned to innerHTML. This renders the three
+   * things Maestro actually uses — paragraphs, links and emphasis — by building nodes, so a link's
+   * href is set as an attribute on an anchor rather than parsed out of a string. Anything else in
+   * the markdown arrives as its own text, which is the right failure.
+   */
+  function renderReply(node, md) {
+    String(md || "").split(/\n{2,}/).forEach(function (para) {
+      var p = el("p");
+      var rest = para.replace(/\n/g, " ");
+      var re = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*|\*([^*]+)\*|_([^_]+)_/g;
+      var last = 0;
+      var m;
+      while ((m = re.exec(rest)) !== null) {
+        if (m.index > last) p.appendChild(document.createTextNode(rest.slice(last, m.index)));
+        if (m[2]) {
+          var a = el("a", null, m[1]);
+          a.setAttribute("href", m[2]);
+          a.setAttribute("target", "_blank");
+          a.setAttribute("rel", "noopener noreferrer");
+          p.appendChild(a);
+        } else if (m[3]) {
+          p.appendChild(el("strong", null, m[3]));
+        } else {
+          p.appendChild(el("em", null, m[4] || m[5]));
+        }
+        last = re.lastIndex;
+      }
+      if (last < rest.length) p.appendChild(document.createTextNode(rest.slice(last)));
+      if (p.childNodes.length) node.appendChild(p);
+    });
+  }
+
+  function addTurn(who, text, grounding) {
+    var t = el("div", "turn " + (who === "them" ? "them" : "him"));
+    t.appendChild(el("span", "lead", who === "them" ? "You" : document.getElementById("guideName").textContent));
+    if (who === "them") {
+      /* What the person typed is painted as text, never re-parsed: re-interpreting their words
+         rewrites them back at them. */
+      t.appendChild(el("p", null, text));
+    } else {
+      renderReply(t, text);
+      if (grounding) {
+        var bits = [];
+        bits.push(grounding.ratings + " ratings");
+        bits.push(grounding.listens + " heard");
+        if (grounding.stances) bits.push(grounding.stances + " stances");
+        bits.push(grounding.knowledge + ", challenge " + grounding.challenge + "/10");
+        if (grounding.worksInView) bits.push(grounding.worksInView + " on screen");
+        if (grounding.prePiano && grounding.prePiano.length) bits.push("pre-1850: " + grounding.prePiano.join(", "));
+        t.appendChild(el("div", "grounded", "Grounded in " + bits.join(" · ")));
+      }
+    }
+    thread.appendChild(t);
+    thread.scrollTop = thread.scrollHeight;
+    return t;
+  }
+
+  function ask(question) {
+    if (!question) return;
+    addTurn("them", question);
+    history.push({ role: "user", text: question });
+    var pending = addTurn("him", "_Thinking…_");
+    var go = document.getElementById("guideGo");
+    go.disabled = true;
+    gw.impromptu.askMaestro({
+      question: question,
+      guide: "maestro",
+      history: history.slice(0, -1),
+      worksInView: inView.slice(0, 12).map(function (w) {
+        return {
+          workId: w.workId || "", title: w.title || "", composer: w.composer || "",
+          composerId: w.composerId || "", genre: w.genre || "",
+          url: w.url || "", performance: w.performance || ""
+        };
+      }),
+      askedToStop: askedToStop,
+      conversation: conversation
+    }).then(function (r) {
+      clear(pending);
+      pending.appendChild(el("span", "lead", r.guideName || "Maestro"));
+      renderReply(pending, r.answer);
+      if (r.grounding) {
+        var g = r.grounding;
+        var bits = [g.ratings + " ratings", g.listens + " heard"];
+        if (g.stances) bits.push(g.stances + " stances");
+        bits.push(g.knowledge + ", challenge " + g.challenge + "/10");
+        if (g.worksInView) bits.push(g.worksInView + " on screen");
+        if (g.prePiano && g.prePiano.length) bits.push("pre-1850: " + g.prePiano.join(", "));
+        pending.appendChild(el("div", "grounded", "Grounded in " + bits.join(" · ")));
+      }
+      history.push({ role: "assistant", text: r.answer });
+    }).catch(function (e) {
+      clear(pending);
+      pending.appendChild(el("span", "lead", "Maestro"));
+      var box = el("div", "error");
+      box.appendChild(el("strong", null, "He could not answer. "));
+      box.appendChild(document.createTextNode((e && e.message) ? e.message : String(e)));
+      pending.appendChild(box);
+    }).then(function () { go.disabled = false; });
+  }
+
+  document.getElementById("guideGo").addEventListener("click", function () {
+    var box = document.getElementById("guideInput");
+    var q = box.value.trim();
+    box.value = "";
+    ask(q);
+  });
+  document.getElementById("guideInput").addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) {
+      ev.preventDefault();
+      document.getElementById("guideGo").click();
+    }
+  });
+  document.getElementById("stopPush").addEventListener("click", function () {
+    askedToStop = true;
+    var b = document.getElementById("stopPush");
+    b.disabled = true;
+    b.textContent = "He has stopped";
+    addTurn("him", "_Understood — no more pushing. Ask me for whatever you want and you will get it straight._");
+  });
+
+  /* Open with the guide named and his opening move, so the panel is never a blank box. */
+  gw.impromptu.guides({}).then(function (list) {
+    var who = (list || []).filter(function (g) { return g.isDefault; })[0] || (list || [])[0];
+    if (!who) return;
+    document.getElementById("guideName").textContent = who.name;
+    document.getElementById("guideTag").textContent = who.tagline || "";
+  }).catch(function () {
+    document.getElementById("guideTag").textContent = "Programme notes with opinions.";
+  });
+  addTurn("him", "What did you last hear that genuinely got to you? Not your favourite piece — the last one that did something. That tells me more than a questionnaire would.");
+
+  showPanel("ask");
+})();
+</script>
+</body>
+</html>

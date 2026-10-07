@@ -1,2 +1,7 @@
+# No `source:` key. It is set to `realm` automatically for a realm-shipped personality, and is only
+# meant to be written here to OVERRIDE that. This file used to say `source: pack` — a value from
+# before realms were called realms — and while it did, an agent conversation introduced itself as
+# "I'm Assistant, but you can call me Maestro": the Jinja voice was being applied while this display
+# name was not.
 name: Maestro
-source: pack
+description: "Programme notes with opinions — modern performances, period instruments, and the piece you have not met"

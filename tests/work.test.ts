@@ -11,43 +11,75 @@ import type { GenericGatewayContext } from "@embabel/runtime-types";
 import { MusicalWork } from "../src/api/work";
 
 describe("MusicalWork.recordings", () => {
-  it("searches YouTube for the work's stored searchQuery, embeddable videos only", async () => {
-    const searchYouTubeVideos = vi.fn().mockResolvedValue({ items: [{ id: { videoId: "abc123" } }] });
+  it("brave-searches youtube.com/watch for the stored searchQuery and keeps only watch links", async () => {
+    const webSearch = vi.fn().mockResolvedValue({
+      web: {
+        results: [
+          { url: "https://www.youtube.com/watch?v=abc123", title: "Symphony No. 5 / Karajan" },
+          { url: "https://www.youtube.com/channel/UCx", title: "Some channel page" },
+        ],
+      },
+    });
     const work = entityForTest(
       MusicalWork,
       { workId: "16406", searchQuery: "Beethoven Symphony no. 5 in C minor" },
-      mockGateway<GenericGatewayContext>({ youtube: { searchYouTubeVideos } }),
+      mockGateway<GenericGatewayContext>({ brave: { webSearch } }),
     );
 
     const r = await work.recordings();
 
-    expect(searchYouTubeVideos).toHaveBeenCalledWith({
-      q: "Beethoven Symphony no. 5 in C minor",
-      part: "snippet",
-      type: "video",
-      videoEmbeddable: "true",
-      maxResults: 8,
+    expect(webSearch).toHaveBeenCalledWith({
+      q: "Beethoven Symphony no. 5 in C minor site:youtube.com/watch",
+      count: 8,
     });
-    expect(r).toMatchObject({ items: [{ id: { videoId: "abc123" } }] });
+    expect(r).toEqual([
+      { url: "https://www.youtube.com/watch?v=abc123", title: "Symphony No. 5 / Karajan" },
+    ]);
   });
 
   it("falls back to composer + title when searchQuery is absent", async () => {
-    const searchYouTubeVideos = vi.fn().mockResolvedValue({ items: [] });
+    const webSearch = vi.fn().mockResolvedValue({ web: { results: [] } });
     const work = entityForTest(
       MusicalWork,
       { workId: "16406", composer: "Beethoven", title: "Symphony no. 5" },
-      mockGateway<GenericGatewayContext>({ youtube: { searchYouTubeVideos } }),
+      mockGateway<GenericGatewayContext>({ brave: { webSearch } }),
     );
 
-    await work.recordings({ maxResults: 3 });
+    await work.recordings({ count: 3 });
 
-    expect(searchYouTubeVideos).toHaveBeenCalledWith({
-      q: "Beethoven Symphony no. 5",
-      part: "snippet",
-      type: "video",
-      videoEmbeddable: "true",
-      maxResults: 3,
+    expect(webSearch).toHaveBeenCalledWith({
+      q: "Beethoven Symphony no. 5 site:youtube.com/watch",
+      count: 3,
     });
+  });
+});
+
+describe("MusicalWork.scores", () => {
+  it("brave-searches imslp.org and keeps only work pages", async () => {
+    const webSearch = vi.fn().mockResolvedValue({
+      web: {
+        results: [
+          { url: "https://imslp.org/wiki/Symphony_No.5_(Beethoven,_Ludwig_van)", title: "Symphony No.5 (Beethoven)" },
+          { url: "https://imslp.org/wiki/Category:Beethoven,_Ludwig_van", title: "Category page" },
+          { url: "https://example.com/scores", title: "Not IMSLP" },
+        ],
+      },
+    });
+    const work = entityForTest(
+      MusicalWork,
+      { workId: "16406", searchQuery: "Beethoven Symphony no. 5 in C minor" },
+      mockGateway<GenericGatewayContext>({ brave: { webSearch } }),
+    );
+
+    const r = await work.scores();
+
+    expect(webSearch).toHaveBeenCalledWith({
+      q: "Beethoven Symphony no. 5 in C minor site:imslp.org",
+      count: 5,
+    });
+    expect(r).toEqual([
+      { url: "https://imslp.org/wiki/Symphony_No.5_(Beethoven,_Ludwig_van)", title: "Symphony No.5 (Beethoven)" },
+    ]);
   });
 });
 

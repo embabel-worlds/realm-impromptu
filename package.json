@@ -2,14 +2,18 @@
   "name": "pack-impromptu-ts",
   "private": true,
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npm run personas && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build": "tsc -p tsconfig.build.json && node -e \"require('fs').writeFileSync('dist/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && embabel-build-manifest",
-    "manifest": "embabel-build-manifest"
+    "personas": "node scripts/personas.mjs",
+    "build": "npm run personas && tsc -p tsconfig.build.json && node -e \"require('fs').writeFileSync('dist/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && embabel-build-manifest",
+    "manifest": "embabel-build-manifest",
+    "check": "npm run typecheck && npm run build && npm test && npm run test:app",
+    "test:app": "playwright test"
   },
   "devDependencies": {
-    "@embabel/runtime-types": "file:../assistant/tooling/runtime-types",
+    "@embabel/runtime-types": "file:../../../../dev/embabel.com/assistant/tooling/runtime-types",
+    "@playwright/test": "^1.63.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   }

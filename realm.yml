@@ -1,37 +1,76 @@
 name: impromptu
 description: |
-  Classical / art-music companion, grounded in the works the user has rated and
-  live public sources. Virtual `MusicalWork` nodes are resolved from Open Opus
-  metadata; each work joins out to virtual `MusicalRecording` nodes (found on
-  YouTube). Printed scores are found by the skill's direct IMSLP web search
-  (deliberately not a graph join — the crawl is too slow for query time). Ships
-  one `music` Agent Skill — look up a work, find a recording or a score, record a
-  rating, recall past ratings, and get recommendations grounded in taste — backed
-  by the `MusicalWork` and `MusicalWorkRating` types so ratings persist into the
-  world graph and feed future recommendations (`SIMILAR_TO`, a fan-in
-  `MusicalTasteSummary`, and `SUGGESTS`). The bundled `maestro` personality gives
-  write-ups a concert-programme voice.
+  Classical music you have not met yet, and a guide with opinions about it.
 
-  REQUIRES the `research` realm to be installed for the `brave` web search that
-  finds recordings (gateway.brave.webSearch — https://github.com/johnsonr/realm-research)
-  and set BRAVE_API_KEY. Without it, work lookups, ratings, and recommendations
-  still work; only recording and score lookups go quiet.
-version: 0.1.0
+  The realm's premise is that recommending music to someone who already knows what
+  they like is the easy half. Two paths lead in. The CATALOGUE path is all facts and
+  no model: Open Opus answers an era, its composers, their dates, their portraits and
+  their best-known works, so a listener whose only clue is "I liked something old"
+  gets somewhere in one keyless HTTP call. The ASK path takes what they actually said
+  — "forty minutes, nothing soothing" — as a pinned `ListeningRequest` and generates
+  against it. Neither needs a rating first, which the earlier version of this realm
+  did, and which is advice rather than a product.
+
+  What a listener does is then kept, because a guide that cannot write anything down
+  offers you the same piece next week: `MusicalListen` (you heard it, whether or not
+  you scored it), `MusicalWorkRating` (what you thought, 1-10), `MusicalTaste` (a
+  stance on a dimension — no solo piano, period instruments or nothing) and
+  `MusicalListener` (how much you know, how hard you want to be pushed). Those are
+  joinable, which is the point: "something new, nothing I have been played, nothing
+  for solo piano" is one query.
+
+  `Maestro` is the guide you talk to — `/talk maestro`, the app, or any OpenAI client.
+  He is an advocate rather than an answerer, and his positions are in his persona
+  where an operator can read them before signing him: no greatest hits, performances
+  from this century with the musicians named, period instruments for anything written
+  before about 1850 (computed from the catalogue's own dates, never guessed), push the
+  listener one real step further than they would go alone, and teach one idea per
+  reply — sonata form, a modulation, what a tone row was for. He stops when asked.
+
+  Works join out to recordings on YouTube, found by web search. Printed scores are
+  found by the `music` skill's direct IMSLP search rather than a graph join, because
+  that crawl is too slow for query time.
+
+  Recordings and scores REQUIRE the `research` realm installed, for
+  `gateway.brave.webSearch`, plus a BRAVE_API_KEY. Without it the catalogue, the
+  ratings, the listening record and every titles-only view still work; only the
+  listen and score links go quiet.
+version: 0.2.0
 author: Rod Johnson
-url: https://github.com/johnsonr/realm-impromptu
+# The repo this actually lives in. It said `johnsonr/realm-impromptu`, which is where it started.
+url: https://github.com/embabel-worlds/realm-impromptu
 category: lifestyle
+
+# Experimental, and specifically: the catalogue paths are facts and are solid, but the discovery
+# generation and Maestro's judgement are a model's, the listening record is new, and nothing here has
+# been lived with over months of real listening yet.
+maturity: experimental
+
 tags:
   - music
   - classical
+  - discovery
   - recommendations
   - openapi
+  - agents
   - skills
   - personalities
 exports:
+  # APIs
   - openopus
+  # Skills, personas, agents. A realm with an exports list loads only the skills it NAMES — leave one
+  # out and it is dropped at load with a debug line, and the first failure you see is a model saying
+  # no such skill exists, which is a long way from the cause.
   - music
   - maestro
+  # Types: the catalogue, the ask, and the listener's own record
   - MusicalWork
   - MusicalWorkRating
   - MusicalRecording
   - MusicalTasteSummary
+  - MusicalComposer
+  - MusicalEra
+  - ListeningRequest
+  - MusicalListen
+  - MusicalTaste
+  - MusicalListener

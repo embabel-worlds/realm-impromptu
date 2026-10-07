@@ -1,23 +1,66 @@
 # realm-impromptu
 
-Classical / art-music companion for the Embabel assistant — grounded in the
-works the user has rated, live Open Opus metadata, recordings on YouTube, and
-public-domain scores on IMSLP.
+Classical music you have not met yet, and a guide with opinions about it.
 
-This realm is the art-music analogue of [`realm-movie`](../realm-movie): where the
-movie realm recommends films grounded in ratings + OMDb + streaming, this realm
-recommends musical works grounded in ratings + Open Opus + YouTube + IMSLP. It
-is a distillation of the standalone [`impromptu`](../impromptu) app (a Spring
-Boot classical-music assistant with hand-coded actions, Neo4j persistence, and
-its own UI) down to the things a realm can ship: APIs, types, a workflow skill,
-and a personality. The chat LLM owns the workflow; the assistant owns the
-persistence and the UI.
+The premise is that recommending music to somebody who already knows what they like is the easy
+half. **Two paths lead in, and neither needs you to have rated anything.** The CATALOGUE path is all
+facts and no model: Open Opus answers an era, its composers, their dates, their portraits and their
+best-known works in one keyless call, so a listener whose only clue is "I liked something old" gets
+somewhere. The ASK path takes what they actually said — "forty minutes, nothing soothing" — as a
+pinned `ListeningRequest` and generates against it.
 
-> **Requires [`realm-research`](../realm-research)** for the `brave`
-> web search that finds recordings (`gateway.brave.webSearch`). It's a vendored
-> OpenAPI spec there — general enough to be shared, and deliberately not an MCP
-> server. Without realm-research, everything else (work lookup, scores, ratings,
-> recommendations) still works; only recording lookups go quiet.
+What you do is then kept, because a guide that writes nothing down offers you the same piece next
+week: what you HEARD (whether or not you scored it), what you thought of it, the boundaries you state
+("no solo piano", "period instruments or nothing"), and how hard you want to be pushed. Those are
+joinable, which is the point — "something new, nothing you have played me, nothing for solo piano" is
+one query.
+
+This is a distillation of the standalone [`impromptu`](https://github.com/embabel/impromptu) app — a
+Spring Boot classical-music assistant with hand-coded actions, Neo4j persistence and its own Vaadin
+UI — down to what a realm can ship. It supersedes it in everything except Spotify, which needs
+per-user OAuth and is not here.
+
+> **Requires [`realm-research`](https://github.com/embabel-worlds/realm-research)** for the Brave web
+> search that finds recordings and scores (`gateway.brave.webSearch`), plus a `BRAVE_API_KEY`.
+> Without it the catalogue, the ratings, the listening record and every titles-only view still work;
+> only the listen and score links go quiet.
+
+## Maestro
+
+The guide you talk to — `/talk maestro`, the app's panel, or any OpenAI client pointed at this world.
+He is an **advocate** rather than an answerer, and his positions are authored in
+`personalities/maestro/` where an operator can read them before signing him:
+
+1. **No greatest hits.** Not Beethoven's Fifth, not the Four Seasons, not Clair de lune, not the
+   famous slow movement lifted out of its symphony. They are mostly great pieces; the objection is to
+   being offered nothing else. A famous piece you ASK about gets discussed properly and warmly.
+2. **Modern performances**, with the musicians named. The cult of a handful of mid-century conductors
+   is mostly about reputation; orchestras play better now.
+3. **Period instruments before 1850** — computed from the catalogue's own death years and handed to
+   him as a finding, never guessed from a date.
+4. **Push you one real step further** than you would go alone, calibrated to how much you know and how
+   much difficulty you have asked for.
+5. **Teach one idea per reply** — what an exposition is doing when it changes key, what a tone row was
+   trying to solve — inside the paragraph about the work it bears on.
+
+He stops when asked, completely: `askedToStop` is a reserved notebook slot, and while it is set the
+host withholds his objective entirely.
+
+He arrives off duty with no sponsor, as every realm agent does. `sign_agent` then `set_agent_stage`
+before he can be talked to; signing him is signing those five positions.
+
+## The app
+
+`apps/impromptu.html` — a listening room, served at `/apps/impromptu/impromptu.html`. Four concert
+halls to choose between (Musikverein, Bayreuth, La Scala, Midnight), the catalogue as a wall of
+portraits, a free-text ask box, inline 1–10 rating, your listening record, and Maestro docked beside
+it all.
+
+**Playback leaves the page, and that is not a design choice.** Apps are served with a fixed CSP that
+declares no `frame-src` and no `media-src`, so a YouTube iframe is refused and so is a remote
+`<audio>`. External links go through an `openExternal` chain rather than `target="_blank"`, which does
+nothing at all in the Me desktop app. Both constraints are invisible until the page is loaded from the
+appliance — see **Testing** below, and embabel/me#2372, embabel/me#2373.
 
 ## What's in the realm
 
@@ -199,3 +242,30 @@ work, recordings and scores are virtual (fetched on demand, never stored), and
 anything about the *user's* taste is the DICE proposition graph's job — not a
 second entity that drifts. If a deployment wants the full composer graph, that is
 Open Opus bulk-population, a separate concern from this query-time realm.
+
+## Testing
+
+```bash
+npm run check          # typecheck + build + 52 unit tests + the served-app tests
+```
+
+`npm test` is the unit suite: the catalogue reshaping, the `prePiano` derivation, the widening chain,
+and the link guard. All mocked — no keys, no network.
+
+`npm run test:app` loads the app **from a running appliance**, with its real response headers, and
+fails on any CSP violation or console error. It needs the appliance up and the realm installed:
+
+```bash
+IMPROMPTU_TOKEN=<your appliance token> npm run test:app
+```
+
+Without the token it skips, loudly. **This test exists because the realm shipped an app whose two
+central affordances were both dead** — a YouTube iframe the CSP refuses, and a `target="_blank"` that
+does nothing in the desktop app — while all 17 views were green, 52 unit tests passed and
+`realm_validate` returned `ok: true`. A CSP lives on the HTTP response, so the offline harness the
+other realms use cannot see it. Verified not to be vacuous: injecting the original iframe back in
+trips `frame-src blocked` immediately.
+
+`tests/questions.yml` is the natural-language battery — the questions people type, and what a correct
+answer has to satisfy. Every entry with a `notes:` field is there because that exact thing went wrong
+in testing.

@@ -1,0 +1,146 @@
+# A concert programme built from your taste, arranged for impact and fit to a running time.
+#
+# THREE layers, each doing what it's best at:
+#   1. Virtual-cypher VIEW  — a STEERED candidate pool: SUGGESTS off your taste summary, tagged with a
+#      recording to hear. The `steer` arg rides in as the reserved `{ai: {hint: $steer}}` edge property, so
+#      it reaches the generative producer's prompt (empty steer = unsteered). Cheap, cached, scope-safe.
+#   2. LLM ARRANGEMENT      — `gateway.ai.complete` selects and ORDERS an impactful programme from that pool:
+#      a bright opener, contrast through the middle, building to a climactic finale, within the time budget.
+#      This is the aesthetic judgement Cypher can't express — concert-programming convention is world knowledge.
+#   3. DETERMINISTIC JS     — parses the reply safely and ENFORCES the running-time budget (trims over-long
+#      programmes, keeping the opener and finale). The arithmetic the model is unreliable at. Mirrors the
+#      unit-tested helpers in src/lens/program.ts (kept in sync by hand — cypherscript can't import).
+#
+# Needs at least one rated work (the taste summary is fan-in over your ratings) and, for listen links, the
+# research pack's brave search (HAS_RECORDING). Both degrade gracefully: no ratings → a prompt to rate some;
+# no recordings → the programme still prints, without links.
+id: concert-program
+name: Concert Programme
+description: A concert programme from your taste — arranged for impact and fit to a running time.
+params:
+  - name: steer
+    type: STRING
+    label: Steer
+    default: ""
+  - name: minutes
+    type: INT
+    label: Length (minutes)
+    default: 90
+spec:
+  kind: cypherscript
+  script: |
+    // DETERMINISTIC parse + budget fit — mirrors the unit-tested src/lens/program.ts
+    // (cypherscript can't import; keep the two in sync by hand).
+    function parseArrangement(text, poolSize) {
+      const cleaned = String(text || "").replace(/```json/gi, "").replace(/```/g, "").trim();
+      let obj = null;
+      try { obj = JSON.parse(cleaned); } catch (e) { obj = null; }
+      const rawPieces = (obj && Array.isArray(obj.pieces)) ? obj.pieces : [];
+      const seen = new Set();
+      const pieces = [];
+      for (const p of rawPieces) {
+        const n = Math.round(Number(p && p.n));
+        if (!Number.isFinite(n) || n < 1 || n > poolSize || seen.has(n)) continue;
+        seen.add(n);
+        pieces.push({
+          n,
+          minutes: Math.max(1, Math.round(Number(p && p.minutes) || 0)),
+          role: String((p && p.role) || ""),
+          note: String((p && p.note) || ""),
+        });
+      }
+      return { title: (obj && obj.title) ? String(obj.title) : "", pieces };
+    }
+    function fitToBudget(pieces, targetMinutes) {
+      const ceiling = targetMinutes * 1.15;
+      const durationOf = (ps) => ps.reduce((s, p) => s + p.minutes, 0);
+      const isAnchor = (p) => /finale|opener/i.test(p.role);
+      let kept = pieces.slice();
+      const dropped = [];
+      while (durationOf(kept) > ceiling && kept.length > 2) {
+        let idx = -1;
+        for (let i = kept.length - 1; i >= 0; i--) { if (!isAnchor(kept[i])) { idx = i; break; } }
+        if (idx < 0) break;
+        dropped.push(kept[idx]);
+        kept = kept.slice(0, idx).concat(kept.slice(idx + 1));
+      }
+      return { kept, dropped, total: durationOf(kept) };
+    }
+
+    // Body in a helper so control flow uses `return` inside a function (only top-level
+    // `await` at program scope, which every lens relies on).
+    async function buildProgramme() {
+      const A = (typeof lensArgs !== "undefined") ? lensArgs : {};
+      const steer = (A.steer || "").toString().trim();
+      const target = (Number.isFinite(+A.minutes) && +A.minutes > 0) ? Math.round(+A.minutes) : 90;
+
+      // 1) STEERED candidate pool — works matching your taste, each with a recording to hear.
+      const res = await gateway.kg.query({
+        cypher: `MATCH (me:AssistantUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary)
+                 MATCH (ts)-[:SUGGESTS {ai: {hint: $steer}}]->(w:MusicalWork)
+                 WHERE NOT EXISTS { (me)-[:RATED]->(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
+                 OPTIONAL MATCH (w)-[:HAS_RECORDING]->(r:MusicalRecording)
+                 WITH w, collect(DISTINCT r)[0] AS rec
+                 RETURN w.composer AS composer, w.title AS title, w.genre AS genre,
+                        rec.title AS recordingTitle, rec.url AS recordingUrl
+                 ORDER BY w.composer ASC, w.title ASC
+                 LIMIT 18`,
+        params: JSON.stringify({ steer }),
+      });
+      const pool = (res && res.rows) ? res.rows : (res || []);
+      if (!pool.length) {
+        return { title: "Concert programme",
+          markdown: "Rate a few works you love first — the programme is built from your taste." };
+      }
+
+      // 2) LLM ARRANGEMENT — select + order an impactful programme within the time budget.
+      const numbered = pool.map((w, i) =>
+        `${i + 1}. ${w.composer || "?"} — ${w.title || "?"}${w.genre ? " (" + w.genre + ")" : ""}`
+      ).join("\n");
+      const prompt =
+        `You are a concert programmer. From the candidate works below, SELECT and ORDER an impactful concert ` +
+        `programme` + (steer ? ` with this steer: "${steer}"` : "") + `.\n\n` +
+        `Candidate works:\n${numbered}\n\n` +
+        `Requirements:\n` +
+        `- Total playing time close to ${target} minutes (within ~10%). Estimate each work's typical ` +
+        `performance duration in minutes.\n` +
+        `- Shape an ARC: open with something bright and inviting, place contrast through the middle, and BUILD ` +
+        `TO A CLIMACTIC FINALE. Vary mood, scale, and key; avoid two heavy works back to back.\n` +
+        `- Use ONLY works from the list, by their number. Never invent works. A shorter, well-shaped programme ` +
+        `beats padding to hit the time.\n` +
+        `- If the programme is long enough to warrant one, give exactly one work the role "pre-interval" ` +
+        `(the interval falls after it).\n\n` +
+        `Reply with STRICT JSON only, no prose:\n` +
+        `{"title": "<short programme title>", "pieces": [{"n": <candidate number>, "minutes": <int>, ` +
+        `"role": "opener|contrast|centrepiece|pre-interval|finale", "note": "<one short line>"}]}`;
+      const raw = await gateway.ai.complete({ prompt, role: "best" });
+
+      const arranged = parseArrangement(raw, pool.length);
+      if (!arranged.pieces.length) {
+        return { title: "Concert programme",
+          markdown: "Could not arrange a programme from your taste just now. Try again, or adjust the steer." };
+      }
+      const fit = fitToBudget(arranged.pieces, target);
+
+      // Render: numbered programme with an interval marker, each piece linked to a recording where we have one.
+      const lines = [];
+      let pos = 1;
+      for (const p of fit.kept) {
+        const w = pool[p.n - 1];
+        const listen = w.recordingUrl ? ` · [listen](${w.recordingUrl})` : "";
+        lines.push(`${pos}. **${w.composer || "?"} — ${w.title || "?"}**  _(~${p.minutes} min)_${listen}`);
+        if (p.note) lines.push(`   ${p.note}`);
+        if (/pre-interval/i.test(p.role)) lines.push(`\n   — Interval —\n`);
+        pos++;
+      }
+      const header = [`**${arranged.title || "Concert programme"}**`];
+      if (steer) header.push(`_Steer: ${steer}_`);
+      const trimmed = fit.dropped.length ? ` (trimmed ${fit.dropped.length} to fit)` : "";
+      header.push(`Target ${target} min · programmed ~${fit.total} min${trimmed}`);
+      return { title: "Your concert programme", markdown: header.join("  \n") + "\n\n" + lines.join("\n") };
+    }
+
+    const out = await buildProgramme();
+    await gateway.lens.present({ content: JSON.stringify({
+      kind: "text", title: out.title, markdown: out.markdown,
+    }) });

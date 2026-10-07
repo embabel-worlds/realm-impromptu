@@ -22,3 +22,8 @@ npm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Playwright output. The served-app spec writes a trace per failure here; it is a
+# diagnostic for the run that produced it and means nothing in another checkout.
+test-results/
+playwright-report/

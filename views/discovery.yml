@@ -1,0 +1,199 @@
+# The views a listener with NO history can run.
+#
+# views/work-recommendations.yml is the taste surface: every view in it anchors on a
+# MusicalWorkRating, so every one of them is empty until somebody has rated something. That left the
+# realm with nothing at all to say to a first-time listener except "go and rate ten works you love",
+# which is advice, not a product.
+#
+# These six anchor on the ASK or on the CATALOGUE instead. Four are pure facts from Open Opus — an
+# era, its composers, their works, a composer's lineage — and cost one HTTP call and no model call.
+# Two generate. All six work on first use, with an empty graph.
+#
+# `(me:AssistantUser)` is NAMED wherever a listener's own rows are read, so the scope rewriter binds
+# it and private listening never leaks. Keep every virtual join in the LEADING MATCH block — a
+# virtual join after a `WITH` is NOT materialized — and put LIMIT/ORDER BY at the end.
+
+# NO `ORDER BY` WITH THE LIMIT, DELIBERATELY. HAS_RECORDING is a web search capped at 8 results per
+# work with no paging, so any ranked, limited query above it is refused — INCOMPLETE_RANKING: nothing
+# proves the records that were not fetched rank below the ones that were, so "the top N" would be a
+# claim the fetch cannot support. The engine is right to refuse it, and it would still be right here
+# even though these views only ever take ONE recording per work, which no truncation at 8 could change.
+# So the bound stays and the ranking claim goes: these are N rows in the order the source returned
+# them, which is true. A surface that wants them ordered can sort what it is given.
+
+# The cold start, and the most important view in the realm. A listening request in the listener's own
+# words, generated against, each pick given a recording to press play on. No ratings needed.
+- name: SomethingToHear
+  description: Works that answer a listening request in your own words — no ratings needed, each with a recording.
+  params:
+    ask:
+      type: string
+      default: "forty minutes, something I probably have not heard, and I do not want it soothing"
+      description: "What you want, in your own words: a mood, a length, a form, an appetite. Say if you want to be challenged — it is honoured rather than softened."
+  cypher: |
+    MATCH (lr:ListeningRequest {request: $ask})-[:OPENS_WITH]->(w:MusicalWork)
+    MATCH (w)-[:HAS_RECORDING]->(r:MusicalRecording)
+    WITH w, head(collect(DISTINCT r)) AS rec
+    RETURN w.composer    AS Composer,
+           w.title       AS Work,
+           w.genre       AS Genre,
+           rec.title     AS Performance,
+           rec.url       AS Recording
+    LIMIT 8
+
+# The same request, titles only — no per-work web search, so it answers in seconds rather than a
+# minute. The right view when somebody is browsing rather than choosing.
+- name: SomethingToHearFast
+  description: Works that answer a listening request — titles only, no recording lookup, answers quickly.
+  params:
+    ask:
+      type: string
+      default: "something restless and under half an hour"
+      description: "What you want, in your own words."
+  cypher: |
+    MATCH (lr:ListeningRequest {request: $ask})-[:OPENS_WITH]->(w:MusicalWork)
+    RETURN DISTINCT w.composer AS Composer, w.title AS Work, w.genre AS Genre
+    ORDER BY Composer ASC, Work ASC
+
+# Browse by period. A fact from the catalogue: no generation, no ratings, no model. The handhold for
+# a listener whose only clue about their own taste is "I liked something old".
+- name: ComposersOfEra
+  description: Every catalogued composer of one style period, with dates and a portrait.
+  params:
+    era:
+      type: string
+      default: "Baroque"
+      description: "Spelled as Open Opus spells it: Medieval, Renaissance, Baroque, Classical, Early Romantic, Romantic, Late Romantic, Post-War, 20th Century, 21st Century. An unrecognised spelling returns no rows rather than an error."
+  cypher: |
+    MATCH (e:MusicalEra {name: $era})-[:HAS_COMPOSER]->(c:MusicalComposer)
+    RETURN c.completeName AS Composer,
+           c.name         AS ShortName,
+           c.birth        AS Born,
+           c.death        AS Died,
+           c.prePiano     AS PeriodInstruments,
+           c.portrait     AS Portrait,
+           c.composerId   AS ComposerId
+    ORDER BY Born ASC, Composer ASC
+
+# Walk INTO a composer: their best-known works from the catalogue, each with something to play.
+#
+# Keyed on the composer ID, not the name, because that is what HAS_WORK is anchored on — and the id is
+# what the browse path already has in hand (ComposersOfEra returns it). Taking a name here would mean
+# a second resolution hop inside the view purely to be friendlier than the catalogue is, and a view
+# that silently resolves "Bach" to one of twenty Bachs is worse than one that asks for the id.
+# A surface or a guide starting from a name resolves it with `gateway.openopus.omnisearch` first.
+#
+# `PeriodInstruments` is the computed pre-1850 finding, carried here so nothing downstream re-derives
+# it from a date.
+#
+# AND NOTE THE SECOND HOP. A pinned anchor is a KEY, not a node: `(c:MusicalComposer {composerId: $x})`
+# binds the key the join needs and nothing else, so `c.completeName`, `c.portrait` and `c.prePiano` all
+# came back null — the first version of this view silently drew a composer page with no composer on it.
+# Nothing materializes an anchor, because no producer is anchored on it; MusicalComposer is a TARGET of
+# COMPOSED_BY. So hop to it as a target — the works carry `composerId`, COMPOSED_BY is batched, and the
+# full record arrives with its portrait.
+- name: MeetAComposer
+  description: A composer's best-known works, each with a recording — and whether period instruments are the honest choice.
+  params:
+    composerId:
+      type: string
+      default: "178"
+      description: "Open Opus composer id — the `ComposerId` column of ComposersOfEra. 178 is Rameau, who is a good default precisely because the catalogue marks none of his 57 works 'popular': the widening chain is what makes him reachable at all."
+  cypher: |
+    MATCH (c:MusicalComposer {composerId: $composerId})-[:HAS_WORK]->(w:MusicalWork)
+    MATCH (w)-[:COMPOSED_BY]->(full:MusicalComposer)
+    MATCH (w)-[:HAS_RECORDING]->(r:MusicalRecording)
+    WITH full, w, head(collect(DISTINCT r)) AS rec
+    RETURN full.completeName AS Composer,
+           w.title           AS Work,
+           w.genre           AS Genre,
+           full.prePiano     AS PeriodInstruments,
+           rec.title         AS Performance,
+           rec.url           AS Recording
+    LIMIT 12
+
+# The same catalogue listing with no recording lookup — instant, for a surface that is drawing a list
+# rather than offering something to press play on.
+- name: MeetAComposerFast
+  description: A composer's best-known works from the catalogue — titles only, instant.
+  params:
+    composerId:
+      type: string
+      default: "178"
+      description: "Open Opus composer id. 178 is Rameau."
+  cypher: |
+    MATCH (c:MusicalComposer {composerId: $composerId})-[:HAS_WORK]->(w:MusicalWork)
+    MATCH (w)-[:COMPOSED_BY]->(full:MusicalComposer)
+    RETURN full.completeName AS Composer,
+           full.portrait     AS Portrait,
+           full.epoch        AS Period,
+           full.prePiano     AS PeriodInstruments,
+           w.workId          AS WorkId,
+           w.title           AS Work,
+           w.genre           AS Genre,
+           w.searchQuery     AS SearchQuery
+    ORDER BY Genre ASC, Work ASC
+
+# Their line backwards — who this composer learned from. A scholarly claim, generated, so each row
+# carries what it is: present it as "generally held to have learned from", never as a date.
+- name: ComposerLineage
+  description: Composers held to have shaped this one's music — the line backwards, and older music you may be half-ready for.
+  params:
+    composer:
+      type: string
+      default: "Brahms"
+      description: "The composer whose influences you want, by name."
+  cypher: |
+    MATCH (c:MusicalComposer {name: $composer})-[:INFLUENCED_BY]->(earlier:MusicalComposer)
+    RETURN earlier.completeName AS Influence,
+           earlier.epoch        AS Period,
+           earlier.birth        AS Born,
+           earlier.death        AS Died,
+           earlier.prePiano     AS PeriodInstruments
+    ORDER BY Born ASC
+
+# What the realm knows about you as a listener, in one row — and the figures behind it. Tabular and
+# OPTIONAL-matched throughout so it answers honestly on an empty graph rather than returning nothing,
+# which is the difference between "you are new here" and a view that looks broken.
+- name: MyListening
+  description: Where you have got to as a listener — how much you know, how hard you want to be pushed, and what you have heard.
+  cypher: |
+    MATCH (me:AssistantUser)
+    OPTIONAL MATCH (me)-[:LISTENS_AS]->(l:MusicalListener)
+    OPTIONAL MATCH (me)-[:RATED]->(r:MusicalWorkRating)
+    OPTIONAL MATCH (me)-[:HEARD]->(h:MusicalListen)
+    OPTIONAL MATCH (me)-[:HAS_TASTE]->(t:MusicalTaste)
+    RETURN coalesce(l.knowledge, 'not yet read')        AS Knowledge,
+           coalesce(l.challenge, 0)                     AS ChallengeAppetite,
+           count(DISTINCT r)                            AS WorksRated,
+           count(DISTINCT h)                            AS WorksHeard,
+           count(DISTINCT t)                            AS StancesStated
+
+# The boundaries and the openings, which is what steers everything else. `curious` is the row that
+# matters most and the easiest to forget you ever said.
+- name: MyMusicalStances
+  description: What you have said you love, avoid, or are curious about — by form, period, instrument or practice.
+  cypher: |
+    MATCH (me:AssistantUser)-[:HAS_TASTE]->(t:MusicalTaste)
+    RETURN t.stance  AS Stance,
+           t.kind    AS Dimension,
+           t.value   AS Value,
+           t.because AS Because,
+           t.statedAt AS Stated
+    ORDER BY CASE t.stance WHEN 'curious' THEN 0 WHEN 'loves' THEN 1 WHEN 'likes' THEN 2
+                           WHEN 'avoids' THEN 3 ELSE 4 END, Value ASC
+
+# The listening log — what was played, which performance, and whether it was heard through. A work
+# started and abandoned is the most useful row here.
+- name: WhatIHaveHeard
+  description: Your listening history — the work, the performance, and whether you heard it through.
+  cypher: |
+    MATCH (me:AssistantUser)-[:HEARD]->(h:MusicalListen)
+    RETURN h.heardAt     AS Heard,
+           h.composer    AS Composer,
+           h.title       AS Work,
+           h.performance AS Performance,
+           h.finished    AS HeardThrough,
+           h.url         AS Recording
+    ORDER BY Heard DESC
+    LIMIT 50

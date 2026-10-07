@@ -1,0 +1,151 @@
+# What a guide keeps about a listener, and about one conversation with them.
+#
+# TWO SCOPES, AND THE DIFFERENCE IS LOAD-BEARING. `scope: subject` follows the PERSON into every
+# conversation they ever have with this persona; `scope: conversation` lives and dies with the
+# exchange. They were the same thing until me#2390 — the store keyed every page on the conversation,
+# so a subject slot was forgotten the moment a new conversation started and the distinction this
+# file draws was decorative. It is real now, and the file is written on that basis.
+#
+# The division with the GRAPH is the other half. The graph (types/music.yml: MusicalListen,
+# MusicalWorkRating, MusicalTaste, MusicalListener) holds what is COUNTABLE and JOINABLE — every
+# listen, every score, every stated stance — because a recommendation query has to anti-join on it.
+# The notebook holds what is READABLE: the card you would glance at before speaking to somebody
+# again. A number belongs in the graph; "he played viola for six years and wants to be baffled"
+# belongs here. Neither is a copy of the other.
+#
+# `knowledge` and `challenge` appear in both, and that is the one intended overlap: the conversation
+# revises them turn by turn as evidence arrives, and whichever reading it ends on is what gets
+# written to the MusicalListener node. The node is the save; this is the working copy.
+name: listening
+description: What a guide learns about a listener while they listen, and what it has already played them.
+slots:
+  # ── Who it is talking to ─────────────────────────────────────────────────────────────────────
+  - name: knowledge
+    scope: subject
+    description: >-
+      How much this person actually knows, read from what they say rather than what they claim.
+      `newcomer` is meeting the repertoire; `casual` knows the famous pieces; `listener` knows
+      composers and periods; `student` knows forms by name and may read scores; `musician` plays or
+      has studied. EVIDENCE moves it: naming a form, a performer, an edition or a recording's date is
+      evidence. Self-deprecation is not — somebody who says "I know nothing about this" and then
+      distinguishes two Shostakovich quartets is a `listener` at least. Nor is enthusiasm: liking a
+      lot of music is not the same as knowing it.
+    type: stage
+    stages: [newcomer, casual, listener, student, musician]
+    default: casual
+  - name: challenge
+    scope: subject
+    description: >-
+      How hard they want to be pushed, 1-10. 1 wants the familiar; 5 will take one unfamiliar thing at
+      a time; 10 would rather be baffled than bored. Read it from what they ASK FOR and what they come
+      back to, never from politeness — "that was interesting" is not consent to go further, and
+      "actually I found that a bit easy" is. Raise it when they finish something demanding or ask for
+      more of it; lower it when they say a piece was too much, and do not creep it back up in the same
+      conversation.
+    type: ordinal
+    range: [1, 10]
+    default: 4
+  # ── What is true about this listener, between conversations ──────────────────────────────────
+  #
+  # `knowledge` and `challenge` alone are two scalars, and two scalars do not read as memory. With
+  # only those, a guide asked "what do you know about me?" at the start of a new conversation looked
+  # at `musician / 10` and answered, not unreasonably, that it knew nothing specific — even though
+  # the values had carried correctly. What makes a conversation feel continuous is the particular:
+  # the piece that landed, the thing they said, the boundary they drew.
+  - name: card
+    scope: subject
+    description: >-
+      What you know about this listener, in two or three sentences, in THEIR words where they gave
+      you any. Not a summary of their ratings — the things that would be rude to have forgotten: what
+      they play, what they came to you wanting, the work that got to them and what they said about it,
+      the boundary they drew. Write it as you would an index card you will read before speaking to
+      them again, and REVISE it rather than appending, so it stays the size of a card.
+    type: text
+    limit: 400
+    default: ""
+  - name: loved
+    scope: subject
+    description: >-
+      Works this person has told you they love, as '<composer> — <title>'. Durable across every
+      conversation, unlike `landed`, which is only this one. The thread you pull on when they come
+      back and say nothing at all.
+    type: list
+    limit: 10
+    default: []
+  - name: avoided
+    scope: subject
+    description: >-
+      Boundaries they have STATED, in their own terms — "no solo piano", "nothing over an hour",
+      "period instruments or nothing". A boundary they have to repeat is one you did not hear.
+    type: list
+    limit: 8
+    default: []
+
+  # ── What has happened in this conversation ───────────────────────────────────────────────────
+  - name: played
+    scope: conversation
+    description: >-
+      Works already offered in this conversation, as '<composer> — <title>'. The guide reads this
+      before suggesting anything, so it does not offer the same piece twice in ten minutes. It is NOT
+      the listening history: that is MusicalListen in the graph, and it outlives this.
+    type: list
+    limit: 12
+    default: []
+  - name: landed
+    scope: conversation
+    description: >-
+      What the person said WORKED, in their own words where possible. The thread to pull on. A work
+      that landed is the strongest evidence available about what to play next, stronger than any
+      stated preference.
+    type: list
+    limit: 8
+    default: []
+  - name: bounced
+    scope: conversation
+    description: >-
+      What did NOT work, and the reason if they gave one ("too long", "hated the singing"). Recorded
+      because the reason generalises where the work does not: one bounce off a countertenor is worth
+      more than three guesses about Baroque opera.
+    type: list
+    limit: 8
+    default: []
+  - name: questionsOpen
+    scope: conversation
+    description: >-
+      How many questions the GUIDE has asked that the listener has not answered. Count a question the
+      guide put to them and they did not take up; drop it to zero when they answer one or change the
+      subject. An offer to do something — "would you like me to find recordings?", "shall I suggest
+      others?" — counts as a question, because that is what it is: a reply postponed and handed back.
+    type: count
+    default: 0
+  - name: taught
+    scope: conversation
+    description: >-
+      The ideas already explained in this conversation — 'sonata form', 'modulation to the dominant',
+      'twelve-tone rows', 'basso continuo', 'historically informed performance'. The guide checks this
+      so it moves ON to the next idea instead of explaining sonata form three times, and so a listener
+      who has had four concepts in a row gets a break from being taught.
+    type: list
+    limit: 8
+    default: []
+  - name: works
+    scope: conversation
+    description: >-
+      WHICH works this conversation has actually been about, as graph references rather than prose, so
+      the next turn can resolve them again instead of re-searching a title it half-remembers.
+    type: entities
+    limit: 10
+    default: []
+  # ── The brake ────────────────────────────────────────────────────────────────────────────────
+  # Reserved behaviour: once true it stays true, and the host withholds the persona's `objective`
+  # while it is set. Maestro advocates, so it needs this — an advocate that cannot be told to stop
+  # is a nuisance, and one told "stop" alongside "your goal is to persuade them" acknowledges the
+  # request and then carries on regardless.
+  - name: askedToStop
+    scope: subject
+    description: >-
+      True once the person has asked not to be pushed, challenged or taught — or has asked for the
+      lecturing to stop. Once true it does not go back to false in this conversation. It silences the
+      advocacy, not the help: they still get the music they asked for, with no case made for it.
+    type: boolean
+    default: false

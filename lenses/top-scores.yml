@@ -1,11 +1,10 @@
-# IMSLP scores for your top 3 rated works. This is a LENS, not a single Cypher query, by necessity: HAS_SCORE
-# is a per-work web search, and the engine can't bound a set of virtual MusicalWork nodes to 3 before that hop,
-# nor pin several (IN / UNION / variable-pin are all rejected; only a single literal {searchQuery:'…'} seeds a
-# MusicalWork anchor). So we first read the 3 top-rated works (instant), then run one PINNED HAS_SCORE query per
-# work (the shape that works). Three web searches → give it ~1–3 minutes.
+# IMSLP scores for your top 3 rated works. Scores are deliberately NOT a graph join (IMSLP lookup is a
+# slow multi-step crawl — wrong for query-time materialization), so this lens searches IMSLP DIRECTLY:
+# read the top 3 rated works (instant), then ONE brave web search per work restricted to imslp.org, and
+# present the work pages as links. Fast (~1s per work) and honest — a page link, not a fabricated PDF.
 id: top-scores
 name: Top 3 — Scores
-description: Public-domain IMSLP scores for your three highest-rated works.
+description: IMSLP score pages for your three highest-rated works.
 spec:
   kind: cypherscript
   script: |
@@ -16,25 +15,23 @@ spec:
       params: JSON.stringify({}),
     });
     const topList = (top && top.rows) ? top.rows : (top || []);
-    const esc = (s) => (s || "").replace(/'/g, "\\'");
     const sections = [];
     for (const t of topList) {
-      // The searchQuery for a rated work is '<composer> <title>'. One PINNED HAS_SCORE query per work —
-      // a single literal {searchQuery:'…'} is the only MusicalWork anchor the engine seeds. Inlined
-      // (escaped) rather than a param so it's a literal pin.
       const q = [t.composer, t.title].filter(Boolean).join(' ');
-      const scores = await gateway.kg.query({
-        cypher: `MATCH (w:MusicalWork {searchQuery:'${esc(q)}'})-[:HAS_SCORE]->(s:MusicalScore)
-                 RETURN s.title AS title, s.description AS description, s.url AS url, s.pageUrl AS pageUrl
-                 ORDER BY s.title ASC`,
-        params: JSON.stringify({}),
-      });
-      const list = (scores && scores.rows) ? scores.rows : (scores || []);
-      const lines = list.map((s) =>
-        `- [${s.title || "Score"}](${s.url || s.pageUrl || "#"})` +
-        (s.description ? ` — ${s.description}` : "")
-      ).join("\n");
-      sections.push(`### ${t.composer ? t.composer + " — " : ""}${t.title}  ·  your rating ${t.rating}/10\n${lines || "_no scores found on IMSLP_"}`);
+      let lines = "_no IMSLP page found_";
+      try {
+        const res = await gateway.brave.webSearch({ q: q + " site:imslp.org", count: 5 });
+        const hits = ((res.web && res.web.results) || [])
+          .filter((r) => r.url && r.url.includes("imslp.org/wiki/") && !r.url.includes("Category:"));
+        if (hits.length) {
+          lines = hits.slice(0, 3)
+            .map((r) => `- [${r.title || "IMSLP page"}](${r.url})` + (r.description ? ` — ${r.description}` : ""))
+            .join("\n");
+        }
+      } catch (e) {
+        lines = "_score search failed: " + e + "_";
+      }
+      sections.push(`### ${t.composer ? t.composer + " — " : ""}${t.title}  ·  your rating ${t.rating}/10\n${lines}`);
     }
     await gateway.lens.present({ content: JSON.stringify({
       kind: "text",

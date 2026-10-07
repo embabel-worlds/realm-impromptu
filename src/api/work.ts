@@ -37,20 +37,16 @@ export interface CurrentUser {
   name?: string;
 }
 
-/** One YouTube search hit — the slice the pack reads from `search.list`. */
-export interface YouTubeSearchItem {
-  id?: { kind?: string; videoId?: string };
-  snippet?: {
-    title?: string;
-    description?: string;
-    channelTitle?: string;
-    thumbnails?: { medium?: { url?: string } };
-  };
+/** One Brave web-search hit — the slice the pack reads. */
+export interface BraveSearchResult {
+  title?: string;
+  url?: string;
+  description?: string;
 }
 
-/** The YouTube `search.list` response — the slice the pack reads. */
-export interface YouTubeSearchResponse {
-  items?: YouTubeSearchItem[];
+/** The Brave `webSearch` response — the slice the pack reads. */
+export interface BraveSearchResponse {
+  web?: { results?: BraveSearchResult[] };
 }
 
 /** One Open Opus omnisearch hit: always a composer, plus a work when the hit is a work. */
@@ -82,14 +78,8 @@ export interface RatingEntry {
  * fully typed (no `unknown`). Swap this for the generated surface when `sync` lands.
  */
 interface ImpromptuGateway {
-  youtube: {
-    searchYouTubeVideos(args: {
-      q: string;
-      part?: string;
-      type?: string;
-      videoEmbeddable?: string;
-      maxResults?: number;
-    }): Promise<YouTubeSearchResponse>;
+  brave: {
+    webSearch(args: { q: string; count?: number }): Promise<BraveSearchResponse>;
   };
   openopus: { omnisearch(args: { query: string; offset: number }): Promise<OmnisearchResponse> };
   repository: { createEntry(args: { type: string; data: MusicalWorkRating }): Promise<RatingEntry> };
@@ -131,18 +121,34 @@ export class MusicalWork extends Entity {
   }
 
   /**
-   * Recordings (performances) of this work on YouTube. Returns the raw
-   * `search.list` response; each `items[].id.videoId` gives a watch URL of
-   * `https://www.youtube.com/watch?v=<videoId>`.
+   * Recordings (performances) of this work — YouTube watch links found via Brave
+   * web search restricted to `youtube.com/watch`, so no Google API quota is spent.
+   * Each hit's `url` IS the watch link; `title` usually names the performers.
    */
-  async recordings(args?: { maxResults?: number }): Promise<YouTubeSearchResponse> {
-    return this.api.youtube.searchYouTubeVideos({
-      q: this.query(),
-      part: "snippet",
-      type: "video",
-      videoEmbeddable: "true",
-      maxResults: (args && args.maxResults) || 8,
+  async recordings(args?: { count?: number }): Promise<BraveSearchResult[]> {
+    const res = await this.api.brave.webSearch({
+      q: `${this.query()} site:youtube.com/watch`,
+      count: (args && args.count) || 8,
     });
+    return ((res.web && res.web.results) || []).filter(
+      (r) => !!r.url && r.url.includes("youtube.com/watch"),
+    );
+  }
+
+  /**
+   * IMSLP score pages for this work — a Brave web search restricted to imslp.org.
+   * Scores are deliberately NOT a graph join (IMSLP lookup is a slow multi-step
+   * crawl); this direct search returns the work pages, each of which lists every
+   * public-domain edition. Present the page links; never invent a PDF URL.
+   */
+  async scores(args?: { count?: number }): Promise<BraveSearchResult[]> {
+    const res = await this.api.brave.webSearch({
+      q: `${this.query()} site:imslp.org`,
+      count: (args && args.count) || 5,
+    });
+    return ((res.web && res.web.results) || []).filter(
+      (r) => !!r.url && r.url.includes("imslp.org/wiki/") && !r.url.includes("Category:"),
+    );
   }
 
   /**

@@ -4,7 +4,9 @@
 # for a musical work, keyed by an Open Opus id — the classical analogue of a `Movie`
 # keyed by IMDb id) and `MusicalWorkRating` (the user's score for a work). Two media
 # types hang off a work as VIRTUAL, fetched-on-demand joins: `MusicalRecording`
-# (a performance on YouTube) and `MusicalScore` (a public-domain PDF on IMSLP). And, as
+# (a performance on YouTube). Printed scores are deliberately NOT a graph join — IMSLP score
+# search is a slow multi-step crawl, wrong for query-time materialization; the `music` skill
+# finds scores with a direct code-mode web search instead. And, as
 # in the movie pack, a fan-in `MusicalTasteSummary` node feeds taste-based recommendations.
 #
 # Why the `Musical*` prefix: these nodes live in the shared workspace KG alongside every
@@ -12,10 +14,23 @@
 # or employment pack's Work; pack-zoom's meeting Recording; a CRM/sports Score), so each
 # type is namespaced — the same reason pack-movie names its fan-in `MovieTasteSummary`.
 #
-# Everything about the USER (which composers/eras they love, the instrument they play,
-# their country) is intentionally NOT redeclared here — that's profile, and the assistant
-# already stores it via the DICE proposition pipeline. Re-modelling it as an entity would
-# just create a second source of truth that drifts.
+# WHAT IS THE USER'S, AND WHY SOME OF IT IS HERE AFTER ALL. General profile — their country, the
+# instrument they play, that they went to the Proms once — stays with the DICE proposition pipeline,
+# and re-modelling it here would only create a second source of truth that drifts. But three things
+# about a listener are DOMAIN data rather than profile, because a query has to join on them:
+#
+#   MusicalWorkRating  what they thought of a work, 1-10
+#   MusicalListen      that they HEARD it, whether or not they ever scored it
+#   MusicalTaste       a stance on a DIMENSION — a form, a period, an instrument, a performance
+#                      practice — which is what "no solo piano" and "period instruments only" are
+#
+# A proposition cannot be anti-joined. "Recommend me something, but nothing you have already played
+# me and nothing for solo piano" is one Cypher query over these three, and that is the test that
+# decides where a fact lives.
+#
+# The listening record is also what a notebook CANNOT be. A notebook set holds one conversation —
+# what has been played, what landed, what was ruled out. These nodes hold what is true about a
+# listener between conversations: next week, in a view, in an app that was never a chat at all.
 #
 # Property shorthand (a plain string is the description) is used where a string column
 # suffices; the object form (with `type`/`identity`/`required`) is used where it matters.
@@ -45,7 +60,7 @@
       type: boolean
       description: "True for a well-known, frequently-performed work (Open Opus 'popular' flag)."
     searchQuery:
-      description: "The free-text string used to search YouTube (recordings) and IMSLP (scores) for THIS work — normally '<composer> <title>', e.g. 'Beethoven Symphony no. 5 in C minor, op. 67'. It is the join key for HAS_RECORDING and HAS_SCORE, so set it whenever you create a MusicalWork (a bare title like 'Symphony no. 5' is ambiguous across composers — always include the composer)."
+      description: "The free-text string used to search the web for THIS work — normally '<composer> <title>', e.g. 'Beethoven Symphony no. 5 in C minor, op. 67'. It is the join key for HAS_RECORDING, so set it whenever you create a MusicalWork (a bare title like 'Symphony no. 5' is ambiguous across composers — always include the composer)."
   # No `retrieval` auto-bind: Open Opus's omnisearch returns a nested {composer, work}
   # inside a results[] array, and retrieval auto-bind only maps flat top-level fields.
   # The `music` skill resolves a work via `gateway.openopus.omnisearch` and creates the
@@ -90,23 +105,50 @@
       description: >-
         Works that match your OVERALL taste, generated from your taste summary rather than from any one
         rating. A good "surprise me based on everything I love" list; exclude works you've already rated.
+    # OPENS_WITH: the COLD START, and the join that makes this realm usable by someone who has rated
+    # nothing. Every other path above needs a MusicalWorkRating to anchor on, so a new listener got
+    # "rate a few works you love first" — advice that is useless to the exact person the realm should
+    # serve best. Here the anchor is the ASK itself: a ListeningRequest pinned inline by its own text
+    # ("twenty minutes, something restless"), with no stored row anywhere, exactly as realm-astrology
+    # pins a BirthMoment. First use works; there is no "add yourself" step.
+    - anchorLabel: ListeningRequest
+      relationship: OPENS_WITH
+      keyField: request            # the free-text ask IS the key
+      recordKeyField: forRequest   # openingWorks echoes the ask here
+      producer: openingWorks
+      description: >-
+        Works that answer a free-text listening request — a mood, a form, a length, an appetite
+        ("something difficult for a long train journey"). Needs NO ratings and no history, so it is the
+        right join for a first-time listener. Pin the request inline and chain straight on to a
+        recording: MATCH (lr:ListeningRequest {request: $ask})-[:OPENS_WITH]->(w:MusicalWork).
+    # HAS_WORK: the catalogue's own works for a composer, from Open Opus — FACTS, not generation, so
+    # browsing a composer costs one HTTP call and no model call at all. `genre` is fixed per producer
+    # ('Popular' — the composer's best-known works across every form), which keeps the key a bare
+    # composer id rather than a composite.
+    - anchorLabel: MusicalComposer
+      relationship: HAS_WORK
+      keyField: composerId
+      recordKeyField: ofComposer
+      producer: worksOfComposer
+      description: >-
+        This composer's best-known works, from the Open Opus catalogue. Not a recommendation and not
+        generated — the catalogue's own list, so it is instant and never invents a work. Use it to walk
+        INTO a composer you have never heard: (c:MusicalComposer)-[:HAS_WORK]->(w:MusicalWork).
 
 - name: MusicalRecording
   userAnchor: false
   description: |
-    A RECORDING of a MusicalWork — a performance on YouTube. VIRTUAL: fetched on demand from the
-    YouTube Data API when a query traverses HAS_RECORDING; never stored. Use it to answer
+    A RECORDING of a MusicalWork — a performance on YouTube, found via web search. VIRTUAL:
+    fetched on demand when a query traverses HAS_RECORDING; never stored. Use it to answer
     "find me a recording of X" and to attach a listen link to a recommendation:
-      MATCH (w:MusicalWork)-[:HAS_RECORDING]->(r:MusicalRecording) RETURN w.title, r.title, r.channel
-    Build the watch URL from the id: 'https://www.youtube.com/watch?v=' + r.videoId.
+      MATCH (w:MusicalWork)-[:HAS_RECORDING]->(r:MusicalRecording) RETURN w.title, r.title, r.url
+    r.url IS the watch link — present it directly.
   properties:
-    videoId:
+    url:
       identity: true
-      description: "YouTube video id, e.g. 'fOk8Tm815lE'. Identity key. Watch URL = 'https://www.youtube.com/watch?v=' + videoId."
-    title: "The video's title, e.g. 'Beethoven: Symphony No. 5 / Karajan · Berliner Philharmoniker'."
-    channel: "The uploading channel — often the label, orchestra, or performer."
-    description: "The video description (may be long; first paragraph usually names performers)."
-    thumbnail: "URL of the video's thumbnail image."
+      description: "The YouTube watch URL, e.g. 'https://www.youtube.com/watch?v=fOk8Tm815lE'. Identity key — link directly."
+    title: "The video's title, e.g. 'Beethoven: Symphony No. 5 / Karajan · Berliner Philharmoniker' — usually names performers."
+    description: "The search-result snippet (often names performers and the uploading channel)."
   # HAS_RECORDING: the recordings for a MusicalWork (producer recordingsByWork over YouTube search).
   # Anchored on MusicalWork.searchQuery. A plain MATCH filters to works that HAVE a recording; works with
   # none simply drop out. Chains after SIMILAR_TO in one query:
@@ -123,38 +165,6 @@
         Recordings (performances) of this work found on YouTube. Only works with at least one hit appear,
         so a plain MATCH filters recommendations to works you can actually listen to right now.
 
-- name: MusicalScore
-  userAnchor: false
-  description: |
-    A published SCORE of a MusicalWork — a public-domain PDF on IMSLP (the Petrucci Music Library): its url,
-    a short description of what the edition is (full score, piano reduction, a single part), and the IMSLP
-    work page it came from. VIRTUAL: found on demand by an LLM WITH WEB SEARCH (producer `scoresForWork`),
-    never stored — because IMSLP's own lookup is a multi-step MediaWiki crawl, not a single API call. MANY
-    scores per work, each keyed by its PDF url. Reach it from a work:
-      MATCH (w:MusicalWork)-[:HAS_SCORE]->(s:MusicalScore) RETURN s.title, s.url, s.description ORDER BY s.title
-  properties:
-    url:
-      identity: true
-      description: "Direct link to the score PDF on IMSLP — the identity key (each distinct edition is its own node)."
-    title: "A short label for the edition, e.g. 'Complete Score', 'Piano Reduction', 'Violin Part'."
-    description: "What this edition is: forces/instrumentation, editor/urtext, or arrangement, in a phrase."
-    pageUrl: "The IMSLP work page the score was found on, e.g. 'https://imslp.org/wiki/Symphony_No.5_(Beethoven,_Ludwig_van)'."
-    workSearchQuery: "The work's searchQuery this score belongs to — links the score back to its MusicalWork (matches MusicalWork.searchQuery)."
-  # HAS_SCORE: declared under MusicalScore (the type it PRODUCES) with anchorLabel MusicalWork. Anchored on
-  # the work's searchQuery so the LLM has a specific '<composer> <title>' to search IMSLP for; each score
-  # links back by workSearchQuery. MANY scores per work — each keyed by its url. A two-stage chain works:
-  # (rt)-[:SIMILAR_TO]->(w:MusicalWork)-[:HAS_SCORE]->(s).
-  virtualJoins:
-    - anchorLabel: MusicalWork
-      relationship: HAS_SCORE
-      keyField: searchQuery
-      recordKeyField: workSearchQuery
-      producer: scoresForWork
-      description: >-
-        Public-domain PDF scores of the work on IMSLP (one node per edition — url, label, description),
-        gathered by an LLM with web search and cached. Many per work; a plain MATCH filters to works that
-        have a score. Reach it from a recommendation: (w:MusicalWork)-[:HAS_SCORE]->(s:MusicalScore).
-
 - name: MusicalTasteSummary
   # Shared/virtual, not user-OWNED in the persistence sense: like MusicalWork/MusicalRecording it is
   # materialized on demand and reached FROM the scoped `(me:AssistantUser)`, so it needs no from-user anchor
@@ -167,7 +177,11 @@
     read `ts.summary`:
       MATCH (me:AssistantUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary) RETURN ts.summary
   properties:
-    userId:
+    # NOT `userId`, which is what this was and which validation now refuses: every fetched node already
+    # carries `userId` as its world scope, so keying on it collides with the scope the engine sets and
+    # the record's own value is only readable as `_sourceUserId`. `summaryFor` holds the same value and
+    # says what it is for.
+    summaryFor:
       identity: true
       description: "The user this summary is for — the identity key, so there is exactly ONE MusicalTasteSummary per user."
     summary: "The ~100-word synthesis of the user's taste: composers, eras, forms, and moods they gravitate toward and avoid."
@@ -177,8 +191,7 @@
     generatedAt: "ISO-8601 timestamp the summary was generated (materialization time)."
   # HAS_MUSICAL_TASTE_SUMMARY: the fan-IN edge. Anchored on the user; the `workTasteSummary` producer gathers
   # the user's MusicalWorkRatings and reduces them to one node via the `synthesize` LLM aggregation. keyField
-  # is the user's `id` (== the userId/workspaceId scope key), echoed by the producer into `userId` so the one
-  # node links back.
+  # is the user's `id`, echoed by the producer into `summaryFor` so the one node links back.
   virtualJoins:
     - anchorLabel: AssistantUser
       relationship: HAS_MUSICAL_TASTE_SUMMARY
@@ -222,3 +235,190 @@
       description: "Score from 1 (couldn't stand it) to 10 (masterpiece). Whole numbers only."
     notes: "Optional one-line reaction, in the rater's own words."
     heardOn: "Optional ISO-8601 date the work was last heard."
+
+# ── The catalogue's structure, fetched not stored ──────────────────────────────────────────────
+#
+# The standalone `impromptu` app modelled a rich reference graph — Composer, Ensemble, Performer,
+# Epoch, Genre, Instrument, Family, Technique — bulk-loaded from Open Opus and enhanced by a
+# musicologist-reviewed CSV pipeline. This realm declined all of it, and for the stored half that
+# was right: a Performer node nobody maintains is a liability, and the composer and genre are
+# already denormalised onto the work.
+#
+# But the refusal also threw away the STRUCTURE discovery runs on, and discovery was the whole point
+# of the app. A listener who cannot name a work can still say "Baroque" or "I liked that Brahms" —
+# and an era, a composer, their dates and their other works are the only handholds that question has.
+# So the structure comes back VIRTUAL: Open Opus answers all of it live, keylessly, in one call per
+# page, and there is nothing to populate, re-import or watch drift.
+
+- name: MusicalComposer
+  userAnchor: false
+  description: |
+    A composer as the Open Opus catalogue records them — complete name, style period, dates, and a
+    portrait. VIRTUAL: fetched on demand when a query traverses COMPOSED_BY, HAS_COMPOSER or
+    INFLUENCED_BY, and never stored. `portrait` is a real image URL, so a surface can show a face
+    rather than a name:
+      MATCH (w:MusicalWork)-[:COMPOSED_BY]->(c:MusicalComposer) RETURN c.completeName, c.portrait
+  properties:
+    composerId:
+      identity: true
+      description: "Open Opus composer id, e.g. '80' for Brahms. The identity key, so one composer is one node however many works reach them."
+    name: "Short name as the catalogue gives it, e.g. 'Brahms' — the form to use in a search string."
+    completeName: "Full name, e.g. 'Johannes Brahms'."
+    epoch: "Style period as Open Opus spells it: 'Baroque', 'Classical', 'Early Romantic', 'Romantic', 'Late Romantic', 'Post-War', '20th Century', '21st Century', 'Medieval', 'Renaissance'."
+    birth: "Birth date, YYYY-MM-DD (the catalogue often knows only the year, and gives 01-01 for the rest)."
+    death: "Death date, YYYY-MM-DD, or empty for the living."
+    portrait: "URL of a portrait image, from the catalogue's own assets. Safe to render; empty for a few composers."
+    # The one DERIVED field, and it earns its place: whether this composer's music predates the
+    # instruments and conventions a modern orchestra plays on. It decides whether a period-instrument
+    # performance is the honest recommendation or an affectation, and a model asked to work it out
+    # from a date got it wrong in both directions — so it is computed once, in the producer, from
+    # the catalogue's own death year.
+    prePiano:
+      type: boolean
+      description: "True when the composer died before 1850 — so the music was written for gut strings, valveless brass, lower pitch and a fortepiano rather than a Steinway, and a period-instrument performance is closer to what was written than a modern-orchestra one."
+  virtualJoins:
+    - anchorLabel: MusicalWork
+      relationship: COMPOSED_BY
+      keyField: composerId        # MusicalWork.composerId — denormalised onto every work
+      recordKeyField: composerId
+      producer: composersByIds
+      description: >-
+        Who wrote this work, in full — complete name, period, dates, portrait, and whether the music
+        predates the modern orchestra. One batched call for a whole page of works, so adding it to a
+        list view is cheap.
+    - anchorLabel: MusicalEra
+      relationship: HAS_COMPOSER
+      keyField: name              # the era's own name is the key
+      recordKeyField: ofEra
+      producer: composersOfEra
+      description: >-
+        Every catalogued composer of one style period. Pin the era inline — MATCH (e:MusicalEra {name:
+        'Baroque'})-[:HAS_COMPOSER]->(c:MusicalComposer) — and you have a browse surface for someone
+        who knows only that they liked something old. No ratings, no generation, one HTTP call.
+    # INFLUENCED_BY: the old app's INFLUENCED edge, which its CSV pipeline had a human musicologist
+    # approve row by row. Generative here rather than curated, and that difference is honest rather
+    # than hidden: influence is a scholarly claim, so each edge carries the confidence the generator
+    # gave it, and the voice that uses this edge is told to attribute it as a view rather than a fact.
+    - anchorLabel: MusicalComposer
+      relationship: INFLUENCED_BY
+      keyField: name
+      recordKeyField: influenced
+      producer: composerLineage
+      description: >-
+        Composers who shaped this one's music — the line backwards. A scholarly claim, not a catalogue
+        fact: present it as "generally held to have learned from", never as a date would be. Walk it to
+        answer "where did this come from" and to find older music a listener is already half-ready for.
+
+- name: MusicalEra
+  userAnchor: false
+  description: |
+    A style period, as a pinnable key — nothing more. There is no stored MusicalEra and no list of
+    them to maintain: the node exists so a query can anchor on the WORD a listener used and traverse
+    to the composers of that period.
+      MATCH (e:MusicalEra {name: 'Baroque'})-[:HAS_COMPOSER]->(c:MusicalComposer) RETURN c.name
+    Open Opus spells them: Medieval, Renaissance, Baroque, Classical, Early Romantic, Romantic,
+    Late Romantic, Post-War, 20th Century, 21st Century. An unrecognised spelling yields no rows
+    rather than an error, so pass one of those exactly.
+  properties:
+    name:
+      identity: true
+      description: "The period's name, spelled as Open Opus spells it. The pinned key."
+
+- name: ListeningRequest
+  userAnchor: false
+  description: |
+    A listening request, as a pinnable key: the free text someone actually says when they want
+    something to listen to — "forty minutes, nothing soothing", "I liked the Shostakovich, go
+    further". There is no stored ListeningRequest; the string IS the node, pinned inline, and
+    OPENS_WITH generates the works that answer it.
+      MATCH (lr:ListeningRequest {request: $ask})-[:OPENS_WITH]->(w:MusicalWork)
+      MATCH (w)-[:HAS_RECORDING]->(r:MusicalRecording)
+      RETURN w.composer, w.title, r.url
+    This is the one path into the realm that needs no history at all.
+  properties:
+    request:
+      identity: true
+      description: "The listening request in the listener's own words. The pinned key, so the same ask is the same node and its works are cached against it."
+
+# ── What the listener has actually done, which is stored ───────────────────────────────────────
+
+- name: MusicalListen
+  description: |
+    That a person HEARD a work — the listening log, separate from what they thought of it. A rating
+    is an opinion and arrives only when someone bothers to give one; a listen is an event, and
+    without it the realm cannot tell "you have not heard this" from "you did not like it", and will
+    cheerfully offer the same piece a third time.
+    Reads answer "what have I been played", "what did I hear and never score", and the honest
+    exclusion in a recommendation:
+      MATCH (me:AssistantUser)-[:HEARD]->(l:MusicalListen) RETURN l.title, l.heardAt ORDER BY l.heardAt DESC
+  # Same shape as a rating: the listener's own listens anchor on their AssistantUser node, which also
+  # carries Person, so one edge serves everyone.
+  userAnchor:
+    predicate: HEARD
+    direction: from-user
+  properties:
+    listenKey:
+      identity: true
+      description: "Identity — '<listenerId>::<workId>::<heardAt>'. The instant is IN the key deliberately: hearing a work twice is two events, and a listening history that silently upserted would lose the second."
+    listenerId: "The Person id this listen belongs to — the current user's own id for their own listening."
+    workId: "Open Opus id of the work heard. Same value as MusicalWork.workId, so listens join to works and to ratings."
+    title: "Title of the work, denormalised for cheap recall."
+    composer: "Composer of the work, denormalised for cheap recall."
+    heardAt: "ISO-8601 instant the listening started. Part of the identity key."
+    url: "The recording that was played, where there was one — a YouTube watch link. The record of WHICH performance, which matters: the same work in two performances is two experiences."
+    performance: "The recording's own title, where there was one — usually names the orchestra, conductor or soloist."
+    source: "How it came to be played: 'app' (a surface the listener clicked), 'chat' (a guide offered it), 'imported'."
+    finished:
+      type: boolean
+      description: "True only when the listener said they heard it through. Default false: a work that was started and abandoned is a stronger signal than one never offered, and pretending otherwise flatters the recommendation."
+
+- name: MusicalTaste
+  description: |
+    A stance on a DIMENSION of music rather than on a work — a form, a period, an instrument, a
+    performance practice, a mood. "No solo piano." "Period instruments or nothing, for anything
+    before Beethoven." "I want to be taken somewhere difficult."
+    This is what a rating cannot say and a proposition cannot be joined on. Reads steer every
+    recommendation — the generative producers take the avoided dimensions as constraints, so a
+    listener states a boundary once instead of re-stating it every time:
+      MATCH (me:AssistantUser)-[:HAS_TASTE]->(t:MusicalTaste) WHERE t.stance IN ['avoids','hates']
+      RETURN t.kind, t.value
+  userAnchor:
+    predicate: HAS_TASTE
+    direction: from-user
+  properties:
+    tasteKey:
+      identity: true
+      description: "Identity — '<personId>::<kind>::<value>', lower-cased. One stance per person per dimension, so changing your mind updates in place rather than leaving both."
+    personId: "The Person this stance belongs to."
+    kind:
+      description: "Which dimension this is about: 'composer', 'era', 'genre', 'form', 'instrument', 'practice' (e.g. period instruments, historically informed), 'mood', 'language', 'length'."
+    value: "The dimension's value in the listener's own terms — 'solo piano', 'Baroque', 'opera in German', 'anything over an hour', 'period instruments'."
+    stance:
+      description: "Where they stand: 'loves', 'likes', 'curious' (would try it), 'avoids' (not now), 'hates'. 'curious' is the most useful value in the set and the easiest to lose — it is the dimension to push on next."
+    because: "Why, in their own words, where they said. Quote it rather than paraphrasing; it is the thing that makes a later recommendation sound like it was listening."
+    statedAt: "ISO-8601 date they said it."
+
+- name: MusicalListener
+  description: |
+    Where one person has got to as a listener: how much they know, and how hard they want to be
+    pushed. One node per person, updated in place.
+    These two values change what a good recommendation IS — the same request from a newcomer and
+    from a conservatoire student deserves different music and a different explanation — so they
+    cannot live only in a conversation. A notebook set holds them for the exchange in progress
+    (notebook/listening.yml); this node is what is still true next week, in a view, in an app:
+      MATCH (me:AssistantUser)-[:LISTENS_AS]->(l:MusicalListener) RETURN l.knowledge, l.challenge
+  userAnchor:
+    predicate: LISTENS_AS
+    direction: from-user
+  properties:
+    listenerKey:
+      identity: true
+      description: "Identity — the person's own id, so there is exactly ONE of these per person and a re-reading updates it rather than accumulating."
+    personId: "The Person this is about."
+    knowledge:
+      description: "How much they know, from what they have actually said and not from what they modestly claim: 'newcomer' (first pieces), 'casual' (knows the famous ones), 'listener' (knows composers and periods), 'student' (reads scores, knows forms by name), 'musician' (plays or has studied). Move it on evidence — naming a form, a performer or an edition is evidence; saying 'I know nothing' while discussing Shostakovich quartets is not."
+    challenge:
+      type: int
+      description: "How hard they want to be pushed, 1-10. 1 wants the familiar and comfortable; 5 will try one unfamiliar thing at a time; 10 wants to be taken somewhere genuinely difficult and would rather be baffled than bored. Read it from what they ASK for and what they came back to, never from politeness."
+    challengeNote: "Why that number, in their own words where they said it. The quote is what stops a later session quietly resetting them to the middle."
+    updatedAt: "ISO-8601 instant this reading was last revised."

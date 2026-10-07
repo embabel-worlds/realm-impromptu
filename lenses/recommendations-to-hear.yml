@@ -1,6 +1,6 @@
 # Top recommendations, each tagged with a recording you can hear now. Same SIMILAR_TO recommendations as the
 # WorkRecommendations view, but each work is joined out to HAS_RECORDING (the YouTube producer) and tagged
-# with the top recording's title + a watch link built from its videoId. OPTIONAL MATCH, not MATCH: show all
+# with the top recording's title + its watch URL (r.url IS the link). OPTIONAL MATCH, not MATCH: show all
 # recommendations, tag the ones with a recording, and float those to the top ("all recs, tag hearable ones").
 id: recommendations-to-hear
 name: Recommendations You Can Hear
@@ -15,17 +15,16 @@ spec:
                OPTIONAL MATCH (w)-[:HAS_RECORDING]->(r:MusicalRecording)
                WITH w, count(DISTINCT rt) AS overlap, collect(DISTINCT r)[0] AS rec
                RETURN w.title AS title, w.composer AS composer, w.genre AS genre, overlap,
-                      rec.title AS recordingTitle, rec.channel AS recordingChannel, rec.videoId AS videoId
-               ORDER BY (CASE WHEN videoId IS NULL THEN 0 ELSE 1 END) DESC, overlap DESC, w.title ASC
+                      rec.title AS recordingTitle, rec.url AS recordingUrl
+               ORDER BY (CASE WHEN recordingUrl IS NULL THEN 0 ELSE 1 END) DESC, overlap DESC, w.title ASC
                LIMIT 12`,
       params: JSON.stringify({}),
     });
     const list = (rows && rows.rows) ? rows.rows : (rows || []);
     const lines = list.map((x) => {
       const head = `- **${x.title || "?"}**` + (x.composer ? ` — ${x.composer}` : "") + (x.genre ? ` · ${x.genre}` : "");
-      if (x.videoId) {
-        const url = "https://www.youtube.com/watch?v=" + x.videoId;
-        return head + `\n  - [${x.recordingTitle || "Listen on YouTube"}](${url})` + (x.recordingChannel ? ` · ${x.recordingChannel}` : "");
+      if (x.recordingUrl) {
+        return head + `\n  - [${x.recordingTitle || "Listen on YouTube"}](${x.recordingUrl})`;
       }
       return head + "\n  - _no recording found_";
     });

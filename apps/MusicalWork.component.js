@@ -110,24 +110,23 @@ export default await cardComponent({
     const query = f.searchQuery || [composer, title].filter(Boolean).join(' ');
 
     // The play button links to the top YouTube recording of the work. The link comes
-    // from the gateway (the path vibe-coded apps use) — `gateway.youtube.searchYouTubeVideos`,
-    // the YouTube search vendored in pack-research, the same op the MusicalWork type's
-    // `recordings` method wraps. Starts as a ▶ linking to a YouTube search; upgrades to the
-    // top video when the gateway answers (and stays a search link if pack-research isn't installed).
+    // from the gateway (the path vibe-coded apps use) — `gateway.brave.webSearch` restricted
+    // to youtube.com/watch, the same op the MusicalWork type's `recordings` method wraps.
+    // Starts as a ▶ linking to a YouTube search; upgrades to the top video when the gateway
+    // answers (and stays a search link if pack-research isn't installed).
     const play = root.querySelector('[data-play]');
     play.textContent = '▶';
     play.setAttribute('href', 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query));
     play.setAttribute('title', 'Listen to ' + title);
 
     const gw = window.gateway;
-    if (gw && gw.youtube && query) {
-      gw.youtube.searchYouTubeVideos({ q: query, part: 'snippet', type: 'video', videoEmbeddable: 'true', maxResults: 1 }).then((res) => {
-        const item = res && res.items && res.items[0];
-        const vid = item && item.id && item.id.videoId;
-        if (vid) {
-          play.setAttribute('href', 'https://www.youtube.com/watch?v=' + vid);
-          const vt = item.snippet && item.snippet.title;
-          if (vt) play.setAttribute('title', 'Listen: ' + vt);
+    if (gw && gw.brave && query) {
+      gw.brave.webSearch({ q: query + ' site:youtube.com/watch', count: 3 }).then((res) => {
+        const hits = (res && res.web && res.web.results) || [];
+        const hit = hits.find((r) => r.url && r.url.indexOf('youtube.com/watch') >= 0);
+        if (hit) {
+          play.setAttribute('href', hit.url);
+          if (hit.title) play.setAttribute('title', 'Listen: ' + hit.title);
         }
       }).catch(() => {});
     }

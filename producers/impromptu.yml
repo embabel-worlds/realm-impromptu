@@ -6,7 +6,6 @@
 #
 #   similarWorks     generative  SIMILAR_TO   — works like ones you rated (music knowledge), resolved to Open Opus
 #   recordingsByWork remote      HAS_RECORDING — YouTube search for performances of a work
-#   scoresForWork    generative  HAS_SCORE    — web-grounded IMSLP PDF scores of a work
 #   workTasteSummary aggregate   HAS_MUSICAL_TASTE_SUMMARY — fan-IN synthesis of your taste
 #   tasteBasedWorks  generative  SUGGESTS     — works matching your whole taste, resolved to Open Opus
 
@@ -20,7 +19,8 @@
 # A name Open Opus can't resolve is dropped (you can't recommend a work you can't identify), which
 # keeps the anti-join against already-rated workIds correct. `echoKeyAs: searchQuery` stamps the
 # generator's own '<composer> <title>' string onto the resolved Work, so its downstream
-# HAS_RECORDING / HAS_SCORE joins have a good YouTube/IMSLP query.
+# HAS_RECORDING join has a good YouTube query. (Printed scores are NOT a join — the skill
+# searches IMSLP directly in code mode; a per-work web crawl is too slow for query time.)
 - name: similarWorks
   kind: generative         # GENERATES the edge (resumably) rather than reading it from a store
   edgeType: SIMILAR_TO
@@ -34,7 +34,9 @@
   resolveRelaxation: punctuation
   volatility: static
   confidenceFloor: 0.3
-  defaultWant: 25          # a view has no LIMIT; keep generating to ~25 survivors (many get filtered out)
+  defaultWant: 10          # each extra demand round is a FULL sequential LLM call (a hinted run once burned
+                           # 12 rounds / 43s chasing 25 survivors from 2 anchors); 10 covers a LIMIT-5 read
+                           # with headroom, and an unfiltered view still fills over a couple of rounds
   # The generator is an LLM; the prompt is PACK-AUTHORED (the host generative backend is domain-agnostic).
   # Rendered with anchors/exclude/want/round/constraints (pushed-down predicates).
   generator:
@@ -94,70 +96,29 @@
     kind: ttl
     seconds: 2592000        # 30 days — static fact
 
-# recordingsByWork: recordings of a work on YouTube — a plain remote producer over the YouTube Data API
-# search, which is vendored in the RESEARCH pack (gateway.youtube.searchYouTubeVideos), NOT MCP. So this
-# pack REQUIRES pack-research installed; if it isn't, the producer degrades gracefully ("the integration may
-# not be connected"). Powers the HAS_RECORDING join. echoKeyAs stamps the queried searchQuery onto each hit
-# so HAS_RECORDING links back to its work; one search per work (per-key fetch). No duration is returned by
-# search.list — the pack presents title/channel/thumbnail, which is enough to pick and play.
+# recordingsByWork: recordings of a work on YouTube — found via BRAVE WEB SEARCH (`site:youtube.com/watch`),
+# NOT the YouTube Data API: `search.list` costs 100 quota units per call (100 searches/day on the default
+# free quota — one recommendation run used to burn a quarter of it), while a Brave query is quota-free on
+# Google and each hit's `url` IS the watch link. The brave op is vendored in the RESEARCH pack
+# (gateway.brave.webSearch), so this pack REQUIRES pack-research installed; if it isn't, the producer
+# degrades gracefully. Powers the HAS_RECORDING join. echoKeyAs stamps the queried searchQuery onto each
+# hit so HAS_RECORDING links back to its work; one search per work (per-key fetch).
 - name: recordingsByWork
   kind: remote
-  operation: searchYouTubeVideos    # bare gateway op-id (unique — resolveTool substring-matches op names)
+  operation: webSearch              # brave (pack-research); bare gateway op-id
   args:
-    q: "{keys}"
-    part: "snippet"
-    type: "video"
-    videoEmbeddable: "true"
-    maxResults: 8
+    q: "{keys} site:youtube.com/watch"
+    count: 8
   keyTemplate: "{key}"
   echoKeyAs: searchQuery             # stamp the queried searchQuery so HAS_RECORDING matches Work.searchQuery
-  records: "$.items[*]"
+  records: "$.web.results[*]"
   project:
-    videoId: "id.videoId"
-    title: "snippet.title"
-    channel: "snippet.channelTitle"
-    description: "snippet.description"
-    thumbnail: "snippet.thumbnails.medium.url"
+    url: "url"
+    title: "title"
+    description: "description"
   cache:
     kind: ttl
     seconds: 604800                  # 7 days — the top recordings for a canonical work are stable
-
-# scoresForWork: a PROMPTED, WEB-GROUNDED edge that returns the Score type directly. IMSLP's own lookup
-# is a multi-step MediaWiki crawl (search → list files → resolve PDF urls) that doesn't map to a single
-# remote op, so an LLM with web search finds the real IMSLP PDF links instead — `tools: [web]` (looks up
-# REAL scores, not stale parametric memory, which also relaxes the volatility gate: `slow` is allowed
-# BECAUSE it's tool-grounded), and NO resolveVia (the LLM emits the target type's fields directly —
-# url/title/description/pageUrl). MANY scores per work, each keyed by its url; the work's searchQuery is
-# the search key. Cached weekly.
-- name: scoresForWork
-  kind: generative
-  edgeType: HAS_SCORE
-  identityField: url              # each score is a distinct node keyed by its PDF link
-  nameField: url                 # keyed/deduped by url (typed mode)
-  anchorKeyField: workSearchQuery # echoes the anchor Work's searchQuery so each score links back
-  volatility: slow               # allowed because the generator is tool-grounded (web), not parametric
-  defaultWant: 6                 # aim for several editions per work
-  generator:
-    kind: llm
-    tools: [web]                 # attach the workspace's web-search tool(s); host appends the JSON contract
-    prompt: |
-      You are a music librarian's research assistant. For each numbered work below, use web search to find
-      public-domain scores of it on IMSLP (imslp.org, the Petrucci Music Library), and return one record PER
-      distinct score PDF — grounded in real IMSLP pages you actually find, never invented.
-
-      Works:
-      {% for a in anchors %}{{ a.n }}. {{ a.title }}
-      {% endfor %}
-      For EACH score return these fields (skip any score whose PDF url you can't confirm on IMSLP):
-      - url: the direct link to the score PDF on IMSLP.
-      - title: a short label for the edition, e.g. "Complete Score", "Piano Reduction", "Violin Part".
-      - description: what the edition is — forces/instrumentation, editor/urtext, or arrangement, in a phrase.
-      - pageUrl: the IMSLP work page the score is on, e.g. https://imslp.org/wiki/Symphony_No.5_(Beethoven,_Ludwig_van).
-      Set `sourceIndex` to the work's number. Return MULTIPLE objects per work when the page has several editions.
-      Only return IMSLP-hosted, public-domain scores.
-  cache:
-    kind: ttl
-    seconds: 604800               # weekly — public-domain scores accrue slowly
 
 # workTasteSummary: the fan-IN producer behind HAS_MUSICAL_TASTE_SUMMARY. The mirror of similarWorks — where
 # that GENERATES many works off one rating, this GATHERS all the user's MusicalWorkRatings and REDUCES them to
@@ -167,7 +128,8 @@
 - name: workTasteSummary
   kind: aggregate
   edgeType: HAS_MUSICAL_TASTE_SUMMARY
-  identityField: userId           # one summary per user (MERGE on the workspace id folds identity spellings)
+  identityField: summaryFor       # one summary per user. NOT `userId`: every fetched node carries that as
+                                  # its world scope, so an identity on it collides with the engine's own.
   anchorKeyField: anchorKey       # echoes each received anchor-identity spelling so every AssistantUser links
   collect:
     anchorLabel: AssistantUser
@@ -202,7 +164,7 @@
   resolveRelaxation: punctuation   # forgiving Open Opus resolution — see similarWorks above
   volatility: static
   confidenceFloor: 0.3
-  defaultWant: 25
+  defaultWant: 10                  # sized like similarWorks — see the demand-round cost note there
   generator:
     kind: llm
     prompt: |
@@ -257,3 +219,215 @@
   cache:
     kind: ttl
     seconds: 604800                 # weekly — matches the summary's refresh cadence
+
+# ── Discovery: the paths that need no history ──────────────────────────────────────────────────
+#
+# Everything above anchors on a rating. These four do not, and that is the point of them: three read
+# the Open Opus catalogue (facts, one HTTP call, no model), and one generates from the words a
+# listener actually used. A realm whose only entry point was "first rate ten works you love" had
+# nothing for the listener it was built for.
+
+# openingWorks: the COLD START. A generative producer like similarWorks, but anchored on the ASK
+# rather than on a rated work, so it answers "forty minutes, something restless" from a standing
+# start. The prompt is deliberately pushy about the three positions this realm holds — away from the
+# warhorses, towards what the listener has not met, and honest that a hard piece is hard — because a
+# generator told merely to "recommend classical music" returns the same twenty pieces every radio
+# station plays, which is the thing this realm exists to be an alternative to.
+- name: openingWorks
+  kind: generative
+  edgeType: OPENS_WITH
+  identityField: workId
+  anchorKeyField: forRequest
+  nameField: title
+  resolveRelaxation: punctuation   # forgiving Open Opus resolution — see similarWorks
+  volatility: static               # what answers a described appetite is world knowledge
+  confidenceFloor: 0.3
+  defaultWant: 10
+  generator:
+    kind: llm
+    prompt: |
+      You are a concert programmer with strong opinions and a horror of the obvious. Below is what a
+      listener has asked for, in their own words. Name works that genuinely answer it.
+
+      What they asked for:
+      {% for a in anchors %}{{ a.title }}
+      {% endfor %}
+      {% if exclude %}
+      Do NOT suggest any of these — they have heard them, or you have already suggested them:
+      {% for e in exclude %}- {{ e }}
+      {% endfor %}
+      {% endif %}
+      {% if constraints %}
+      Only suggest works that satisfy ALL of these constraints (skip any that don't):
+      {% for c in constraints %}- {{ c }}
+      {% endfor %}
+      {% endif %}
+      {% if hint %}
+      Additional requirement: {{ hint }}. Treat it as HARD — every work must clearly satisfy it, and a
+      shorter list of true matches beats padding.
+      {% endif %}
+      Rules:
+      - Suggest up to {{ want }} works in total. Set `sourceIndex` to 1.
+      - `title` is the work's name INCLUDING the composer surname, e.g. "Szymanowski Violin Concerto
+        No. 1" — a clean search string, since it is used to look the work up.
+      - THE COMPOSER MUST BE WELL KNOWN. Every suggestion is looked up in a CURATED catalogue of about
+        150 composers — essentially the ones with an entry in a concert-going reference. A work by
+        anyone outside it cannot be identified and is silently discarded, so naming d'Indy, Lekeu,
+        Magnard, Gouvy, Castillon or Pierné does not produce an adventurous recommendation; it
+        produces no recommendation at all. If you are not confident the composer is famous enough to
+        be in such a list, do not suggest the work.
+      - SO BE ADVENTUROUS IN THE WORK, NOT IN THE COMPOSER. This is the whole move: Fauré's E minor
+        quartet rather than Lekeu's; Dvořák's Seventh rather than his Ninth; the Sibelius Sixth rather
+        than the Second. A famous composer's neglected piece is a real discovery and it resolves. An
+        obscure composer's masterpiece is a dead end.
+      - Avoid the handful of pieces that are genuine wallpaper — Beethoven's Fifth, Vivaldi's Four
+        Seasons, Pachelbel's Canon, Boléro, the New World, Clair de lune, Eine kleine Nachtmusik,
+        Carmina Burana — unless the request asks for them. That is a short list of specific tracks,
+        not a reason to avoid their composers, and not a reason to avoid a famous piece that genuinely
+        answers the request.
+      - WHEN THE REQUEST IS SPECIFIC, SATISFYING IT COMES FIRST. A request naming a period, a form, a
+        nationality, an instrument or a composer has already narrowed the field, often to a small and
+        well-known canon — "French string quartets of the 1890s" is a handful of pieces and the best
+        of them are famous. Answer it with the works that actually fit, famous or not. Returning
+        nothing because everything that fits is well known is the worst possible answer: it tells the
+        listener their request was impossible when it was easy.
+      - Breadth of composer is a preference for an OPEN request, not a rule. Two quartets by the same
+        composer beat an empty list.
+      - If the request implies an appetite for difficulty, HONOUR IT. Serial, spectral, microtonal,
+        late-Romantic-vast, medieval — give them the real thing rather than a palatable approximation.
+      - Conversely, never dress a demanding work up as easy listening. The honest pitch for a hard
+        piece is what it rewards, not a promise that it is soothing.
+      - `confidence` is 0.0-1.0: how sure you are the work exists AND answers the request. Be honest;
+        do not invent works to reach the count.
+  resolveVia:
+    name: resolveWork
+    kind: remote
+    operation: omnisearch
+    args:
+      query: "{keys}"
+      offset: "0"
+    keyTemplate: "{key}"
+    echoKeyAs: searchQuery
+    records: "$.results[*]"
+    project:
+      workId: "work.id"
+      title: "work.title"
+      subtitle: "work.subtitle"
+      composer: "composer.name"
+      composerId: "composer.id"
+      genre: "work.genre"
+  cache:
+    kind: ttl
+    seconds: 604800                # a week: the same ask should give the same programme for a while,
+                                   # but not forever — a listener who comes back next month has moved
+
+# composersByIds: COMPOSED_BY. The realm's own `findComposersByIds` verb over the catalogue's batched
+# ids endpoint, so a whole page of works resolves its composers in ONE call. A verb rather than a raw
+# remote op because the catalogue returns `complete_name` and a death year, and what the graph needs
+# is `completeName` and `prePiano` — reshaping belongs in the realm, not in every query that reads it.
+- name: composersByIds
+  kind: remote
+  operation: findComposersByIds
+  keyArg: ids
+  records: "$[*]"
+  # Filters NOTHING: the catalogue serves a whole listing for one key and has no predicate surface at
+  # all, so there is nothing to push down. Declared empty deliberately — claiming a filter it does
+  # not apply would make the engine count an unfiltered set as though it were narrowed.
+  pushdown: []
+  cache:
+    kind: ttl
+    seconds: 2592000               # 30 days — a dead composer's dates do not move
+
+# composersOfEra: HAS_COMPOSER. The browse surface for "something Baroque" — the catalogue's own
+# list for a period, which is a fact and so costs no model call.
+- name: composersOfEra
+  kind: remote
+  operation: findComposersOfEra
+  keyArg: eras
+  records: "$[*]"
+  # Filters NOTHING: the catalogue serves a whole listing for one key and has no predicate surface at
+  # all, so there is nothing to push down. Declared empty deliberately — claiming a filter it does
+  # not apply would make the engine count an unfiltered set as though it were narrowed.
+  pushdown: []
+  cache:
+    kind: ttl
+    seconds: 2592000               # 30 days — who belongs to the Baroque is settled
+
+# worksOfComposer: HAS_WORK. The catalogue's best-known works for a composer. `Popular` here is the
+# catalogue's pseudo-genre, not an endorsement of popularity: it is the set a listener meeting a
+# composer should choose FROM, and the voices in this realm are told to pick the third one rather
+# than the first.
+- name: worksOfComposer
+  kind: remote
+  operation: findWorksOfComposer
+  keyArg: composerIds
+  records: "$[*]"
+  # Filters NOTHING: the catalogue serves a whole listing for one key and has no predicate surface at
+  # all, so there is nothing to push down. Declared empty deliberately — claiming a filter it does
+  # not apply would make the engine count an unfiltered set as though it were narrowed.
+  pushdown: []
+  cache:
+    kind: ttl
+    seconds: 2592000               # 30 days — a catalogue listing
+
+# composerLineage: INFLUENCED_BY — the old standalone app's INFLUENCED edge, which a human
+# musicologist approved row by row in a CSV. Generated here instead, and every edge therefore carries
+# a confidence and is to be attributed as a scholarly view rather than stated as a date would be.
+# Resolved through the realm's own name lookup so a lineage composer arrives with the same fields
+# (and the same computed prePiano) as one reached from a work.
+- name: composerLineage
+  kind: generative
+  edgeType: INFLUENCED_BY
+  identityField: composerId
+  anchorKeyField: influenced
+  nameField: name
+  volatility: static
+  confidenceFloor: 0.4             # higher than the work producers: a wrong teacher is a wrong fact,
+                                   # where a loose "you might like" is only a weak suggestion
+  defaultWant: 6
+  generator:
+    kind: llm
+    prompt: |
+      You are a musicologist. For each composer below, name the composers who demonstrably shaped
+      their music — teachers, the older figures they studied, copied out, arranged or openly argued
+      with. Influence backwards in time only.
+
+      Composers:
+      {% for a in anchors %}{{ a.n }}. {{ a.name }}
+      {% endfor %}
+      {% if exclude %}
+      Already known — do not repeat:
+      {% for e in exclude %}- {{ e }}
+      {% endfor %}
+      {% endif %}
+      Rules:
+      - Up to {{ want }} composers in total across the list. Set `sourceIndexes` to every numbered
+        composer each one influenced.
+      - `name` is the surname the catalogue would use, e.g. "Buxtehude", "C.P.E. Bach".
+      - Only real, documented influence. No "both wrote symphonies"; no contemporaries who simply
+        overlapped; nobody born later.
+      - `confidence` is 0.0-1.0 and should reflect how well attested the influence is — high for a
+        teacher, lower for a stylistic debt scholars argue about. Do not pad the list.
+  resolveVia:
+    name: resolveComposer
+    kind: remote
+    operation: findComposersByName
+    # Per-key, with a single-string arg — the same shape as the omnisearch resolver above, which is
+    # the one proven in this file. A batched resolver would want `keyArg`, and resolveVia is not
+    # documented to take it.
+    args:
+      name: "{keys}"
+    keyTemplate: "{key}"
+    records: "$[*]"
+    project:
+      composerId: "composerId"
+      name: "name"
+      completeName: "completeName"
+      epoch: "epoch"
+      birth: "birth"
+      death: "death"
+      portrait: "portrait"
+      prePiano: "prePiano"
+  cache:
+    kind: ttl
+    seconds: 2592000               # 30 days — scholarship moves, but not weekly

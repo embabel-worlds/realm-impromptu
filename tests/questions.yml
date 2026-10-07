@@ -1,0 +1,175 @@
+# The questions a person actually types at this realm.
+#
+# Required rather than optional: this realm ships a skill, a focus, an agent people talk to, and an
+# app with a free-text ask box, so four separate surfaces take words from a person. The spec's test
+# is whether ANY surface does, and four do.
+#
+# The hardest cases here are not the lookups. They are the ones where a correct-looking answer is
+# wrong: a recommendation that is a warhorse, a link that does not exist, a boundary read literally
+# instead of as meant, and the empty graph. Each of those has actually happened, in testing, on this
+# realm, and each question below exists because of it.
+
+# ── The cold start: what a listener with NO history asks first ──────────────────────────────────
+
+- question: "I've never really listened to classical music. Where do I start?"
+  expect:
+    # The whole point of the realm. An answer that asks them to go and rate ten works first is the
+    # behaviour this version exists to remove.
+    nonEmpty: true
+    mustNotSay:
+      - "rate a few works"
+      - "rate some works first"
+    # The greatest-hits reflex, named. An early build answered this exact question with Beethoven's
+    # Seventh, Clair de lune and Eine kleine Nachtmusik — three for three.
+    mustNotMention:
+      - "Clair de lune"
+      - "Eine kleine Nachtmusik"
+      - "Four Seasons"
+      - "Canon in D"
+      - "Für Elise"
+    notes: >-
+      Must name at least one actual work, with a reason to hear it. "What do you like?" alone is a
+      reply postponed, not an answer.
+
+- question: "just something to listen to this evening"
+  expect:
+    nonEmpty: true
+    mustNotMention: ["Clair de lune", "Four Seasons", "Eine kleine Nachtmusik", "New World"]
+    notes: >-
+      The OPEN request, and the guard on the fix above: loosening the anti-warhorse rule for specific
+      asks must not loosen it here. A good answer is famous composers with their NEGLECTED works —
+      Dvořák's Seventh rather than the New World, Sibelius's Sixth rather than the Second. That shape
+      is the realm working; a list of radio favourites is the realm failing.
+
+- question: "Give me forty minutes of something I probably haven't heard, and don't make it soothing"
+  expect:
+    matchesView: { name: SomethingToHearFast, param: ask }
+    nonEmpty: true
+    notes: >-
+      The listener's own words go to the view VERBATIM as `ask`. An answer that quietly rewrites this
+      into "relaxing classical" has inverted the request.
+
+- question: "late nineteenth century, string quartets, french"
+  expect:
+    nonEmpty: true
+    mustMention: ["Debussy"]
+    notes: >-
+      THE REGRESSION CASE. This returned nothing at all, and the cause was a self-defeating pair of my
+      own making: the generator prompt said "prefer the composer one shelf over", while the resolution
+      spine is a CURATED catalogue of about 150 famous composers. Every French name a model reaches
+      for here — d'Indy, Lekeu, Magnard, Castillon, Gouvy, Pierné — is absent from Open Opus, so each
+      suggestion was silently discarded and 36 resolution attempts yielded one row. The better the
+      generator obeyed the prompt, the emptier the answer.
+      The rule now is "adventurous in the WORK, not the composer", and a request naming a period, form
+      or nationality has satisfying it outrank novelty. Debussy, Fauré and Franck are the right answer
+      and all three are famous; returning nothing because everything that fits is well known tells the
+      listener their easy request was impossible.
+
+- question: "Something difficult. I'd rather be baffled than bored."
+  expect:
+    nonEmpty: true
+    notes: >-
+      An appetite for difficulty is HONOURED, not softened — the real article with an honest account
+      of what it demands, never a palatable approximation sold as challenging.
+
+# ── The catalogue: facts, and they must not be generated ────────────────────────────────────────
+
+- question: "Who are the Baroque composers?"
+  expect:
+    matchesView: { name: ComposersOfEra, param: era }
+    nonEmpty: true
+    notes: "One HTTP call, no model. If this answer took a generation, the wrong path was taken."
+
+- question: "Who was Rameau and what should I hear by him?"
+  expect:
+    nonEmpty: true
+    notes: >-
+      Rameau is the regression case for the widening chain: 57 catalogued works, NONE marked popular,
+      and the catalogue answers an empty genre with `success: "false"` rather than an empty list. An
+      answer of "no works found" is the bug.
+
+- question: "Who influenced Brahms?"
+  expect:
+    matchesView: { name: ComposerLineage, param: composer }
+    nonEmpty: true
+    notes: >-
+      Must be attributed as a scholarly view ("generally held to", "the debt scholars point to"), never
+      stated flatly as a date would be. The edge is generated, not catalogued.
+
+- question: "Should I listen to Bach on period instruments?"
+  expect:
+    nonEmpty: true
+    notes: >-
+      Yes, and the reason must come from the COMPUTED `prePiano` column, not from the model's sense of
+      a date. Asked to judge from dates alone a model put Mendelssohn on gut strings and Monteverdi on
+      a Steinway.
+
+# ── Recordings: the failure that cannot be allowed ──────────────────────────────────────────────
+
+- question: "Find me a recording of Shostakovich's Eighth Quartet"
+  expect:
+    nonEmpty: true
+    notes: >-
+      EVERY link must come from a search that just ran. Asked this with no search available, a model
+      produced three confident youtube.com/watch addresses that did not exist. If no search ran, the
+      correct answer NAMES the performers in words and gives no link. A fabricated watch link is
+      indistinguishable from a real one until it is clicked — check the links in this answer resolve.
+
+- question: "Is there a score for the Rameau?"
+  expect:
+    notes: >-
+      An IMSLP work page that was actually found, or a plain "I could not find one". Never a plausible
+      imslp.org/wiki/… URL assembled from the title.
+
+# ── The listening record: what makes next week better than today ────────────────────────────────
+
+- question: "I can't stand solo piano"
+  expect:
+    writes: { type: MusicalTaste, kind: instrument, stance: hates }
+    notes: >-
+      Recorded, not just acknowledged. And read for what it MEANS: it is about one instrument alone
+      carrying a work, so solo harpsichord and solo organ are inside it. Maestro offered a harpsichord
+      suite two sentences after being told this — the answer looked attentive and was not.
+
+- question: "That one landed, I loved it"
+  expect:
+    writes: { type: MusicalWorkRating }
+    notes: >-
+      A verdict is a rating. It must reach the graph, or the next recommendation is no better informed
+      than the last. Must also say what SPECIFICALLY they responded to and name the next work along
+      that line, rather than only congratulating them.
+
+- question: "What have I been listening to?"
+  expect:
+    matchesView: { name: WhatIHaveHeard }
+    notes: "Includes works heard and never rated — that is the whole reason MusicalListen is separate."
+
+- question: "What do you know about my taste?"
+  expect:
+    matchesView: { name: MyListening }
+    notes: >-
+      On an empty graph this answers "not yet read / 0", honestly, rather than returning nothing. A
+      view that looks broken and a listener who is new are different facts.
+
+- question: "Stop pushing me, I just want something to listen to"
+  expect:
+    writes: { type: notebook, slot: askedToStop, value: true }
+    notes: >-
+      The brake. They still get the music; they get it with no case made for it. Nothing volunteered,
+      nothing slipped in after the acknowledgement, and it does not expire later in the conversation.
+
+# ── Taste-based, which needs history and must say so when it has none ───────────────────────────
+
+- question: "What should I listen to, based on what I've loved?"
+  expect:
+    matchesView: { name: WorkRecommendations }
+    notes: >-
+      With no ratings this correctly warns NEEDS_FILTER rather than returning an empty list. The
+      answer must then OFFER the cold-start path instead of reporting that there is nothing.
+
+- question: "What would my partner and I both enjoy?"
+  expect:
+    matchesView: { name: MutualFavourites }
+    notes: >-
+      Populates only once a second person has ratings. Recording another person's ratings is still a
+      seeding operation, so say that plainly rather than filing theirs under the current user's name.
