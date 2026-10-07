@@ -62,34 +62,56 @@
    *
    * Every hall clears WCAG AA for body and secondary text; the figures are in the commit.
    */
+  /*
+   * Carried over from the standalone impromptu app's own theme files, which is where I should have
+   * started: `src/main/resources/themes/*.css` in embabel/impromptu.
+   *
+   * I had it backwards three times. That app keeps the GROUND dark and fairly similar across themes
+   * and lets a SATURATED ACCENT carry each room's identity — Vienna's seats are dark red, the
+   * Concertgebouw's brand is a vivid red, Midnight is blue. A high-chroma accent reads clearly even
+   * when two backgrounds are close, where my near-black-with-a-hint-of-hue did not read at all.
+   *
+   * It is also four layers deep per theme, not two: a near-black behind everything, a base, a raised
+   * surface, and a PANEL GRADIENT that gives a card its richness. Flattening that to one `--surface`
+   * is most of why mine looked dead.
+   *
+   * `--glow` is the accent at low alpha. The old app puts it behind the title and on panel borders;
+   * both are kept.
+   */
   :root,
-  :root[data-hall="musikverein"] {
-    --bg: #120d05; --bg-deep: #080501; --surface: #241a0c; --surface-2: #332612;
-    --edge: #4a3817; --edge-bright: #7d6029;
-    --gold: #f5cf6e; --gold-soft: #bda05a; --ink: #f8f1e0; --dim: #a2947a;
-    --accent: #c0392b; --ok: #8fae6a;
-    --glow: 245, 207, 110;
+  :root[data-hall="gold"] {
+    --bg-deep: #0a0a0f; --bg: #121218; --surface: #1a1525; --surface-2: #231c31;
+    --panel-start: #4a1c2b; --panel-end: #1a1525;
+    --edge: #2b2338; --edge-bright: #45384f;
+    --accent: #c9a227; --accent-soft: #d4af37; --ink: #f5f5f0; --dim: #9ca3af;
+    --alarm: #c0392b; --ok: #8fae6a;
+    --glow: 201, 162, 39;
   }
-  :root[data-hall="scala"] {
-    --bg: #420c1a; --bg-deep: #2d0711; --surface: #5c1628; --surface-2: #732038;
-    --edge: #8a2d45; --edge-bright: #b04459;
-    --gold: #f3cf85; --gold-soft: #d0a468; --ink: #ffeae8; --dim: #deaaa8;
-    --accent: #ff7a86; --ok: #a8c489;
-    --glow: 243, 207, 133;
+  :root[data-hall="vienna"] {
+    --bg-deep: #1a0a0a; --bg: #2d1515; --surface: #3d1a1a; --surface-2: #4a2020;
+    --panel-start: #4a2020; --panel-end: #2d1515;
+    --edge: #522525; --edge-bright: #7a3a3a;
+    --accent: #d4af37; --accent-soft: #b22222; --ink: #faf0e6; --dim: #d2b48c;
+    --alarm: #ff6b6b; --ok: #9dbb7a;
+    --glow: 212, 175, 55;
   }
-  :root[data-hall="bayreuth"] {
-    --bg: #3a2c1e; --bg-deep: #2a2016; --surface: #4d3b28; --surface-2: #5e4932;
-    --edge: #6d5639; --edge-bright: #91754f;
-    --gold: #e8b877; --gold-soft: #c69a5f; --ink: #f6efe3; --dim: #c9b79f;
-    --accent: #d98355; --ok: #a3bd84;
-    --glow: 232, 184, 119;
+  :root[data-hall="midnight"] {
+    --bg-deep: #0a0a14; --bg: #0f0f1a; --surface: #141428; --surface-2: #1a1a3a;
+    --panel-start: #1a1a3a; --panel-end: #0f0f1a;
+    --edge: #242447; --edge-bright: #3a3a6b;
+    --accent: #4a9eff; --accent-soft: #7bb8ff; --ink: #e8eef5; --dim: #8ba4c4;
+    --alarm: #ff7a86; --ok: #7fc8a9;
+    --glow: 74, 158, 255;
   }
-  :root[data-hall="concertgebouw"] {
-    --bg: #f5f0e4; --bg-deep: #ebe4d3; --surface: #fffcf4; --surface-2: #f2ebdb;
-    --edge: #d9cdb4; --edge-bright: #b9a685;
-    --gold: #80601a; --gold-soft: #6b4e14; --ink: #241f17; --dim: #6b6153;
-    --accent: #a8332e; --ok: #4f6b3a;
-    --glow: 128, 96, 26;
+  :root[data-hall="london"] {
+    --bg-deep: #0d0a10; --bg: #16111c; --surface: #221829; --surface-2: #2e2037;
+    --panel-start: #3d1b35; --panel-end: #221829;
+    --edge: #35263f; --edge-bright: #553d63;
+    /* The old app's London pink is #e91e63, which is 4.3:1 on this ground — just under AA, and the
+       accent is what links are drawn in. One step up its own ramp, 4.9:1. */
+    --accent: #ec407a; --accent-soft: #f06292; --ink: #f6f1f6; --dim: #ad9bb5;
+    --alarm: #ff8a80; --ok: #9ccc8f;
+    --glow: 236, 64, 122;
   }
 
   * { box-sizing: border-box; }
@@ -118,7 +140,7 @@
     font-size: 16px; line-height: 1.6;
     -webkit-font-smoothing: antialiased;
   }
-  a { color: var(--gold); text-decoration: none; }
+  a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
   button, input, select, textarea { font-family: inherit; font-size: 0.95rem; }
 
@@ -129,33 +151,12 @@
       radial-gradient(900px 260px at 14% -40%, rgba(var(--glow), .16), transparent 70%),
       linear-gradient(180deg, var(--bg-deep), var(--bg));
   }
-  /*
-   * A MOTIF PER HALL, because colour alone was not enough to tell them apart — and would never be
-   * for anybody who does not see colour the way I was assuming. Each room gets the thing it is
-   * actually known for, drawn in line: the Musikverein's gilded caryatid bay, La Scala's swagged
-   * velvet, Bayreuth's exposed timber fan, the Concertgebouw's plaster rosette.
-   *
-   * It draws in `currentColor` so it takes the hall's gold, sits behind the masthead at low opacity,
-   * and is `aria-hidden` — it is ornament, and a screen reader announcing "caryatid" would be noise.
-   */
-  .hall-mark {
-    position: absolute; right: 190px; top: 50%; transform: translateY(-50%);
-    width: 120px; height: 72px; color: var(--gold); opacity: .3; pointer-events: none;
-  }
-  .hall-mark g { display: none; }
-  :root[data-hall="musikverein"]   .mark-musikverein,
-  :root:not([data-hall])           .mark-musikverein,
-  :root[data-hall="scala"]         .mark-scala,
-  :root[data-hall="bayreuth"]      .mark-bayreuth,
-  :root[data-hall="concertgebouw"] .mark-concertgebouw { display: block; }
-  header { position: relative; overflow: hidden; }
-  @media (max-width: 900px) { .hall-mark { display: none; } }
   .masthead { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
   h1 {
     margin: 0; font-size: 2.1rem; font-weight: 400; letter-spacing: .015em;
     color: var(--ink);
   }
-  h1 em { font-style: italic; color: var(--gold); }
+  h1 em { font-style: italic; color: var(--accent); text-shadow: 0 0 30px rgba(var(--glow), .45); }
   .tagline { margin: 4px 0 0; color: var(--dim); font-size: .95rem; font-style: italic; }
   .halls { display: flex; gap: 6px; align-items: center; }
   .halls span { font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
@@ -163,11 +164,11 @@
     width: 20px; height: 20px; border-radius: 50%; cursor: pointer; padding: 0;
     border: 1px solid var(--edge-bright); background: var(--surface-2);
   }
-  .hall-dot[aria-pressed="true"] { outline: 2px solid var(--gold); outline-offset: 2px; }
-  .hall-dot.musikverein   { background: linear-gradient(135deg, #f5cf6e 50%, #120d05); }
-  .hall-dot.scala         { background: linear-gradient(135deg, #f3cf85 35%, #5c1628); }
-  .hall-dot.bayreuth      { background: linear-gradient(135deg, #e8b877 35%, #4d3b28); }
-  .hall-dot.concertgebouw { background: linear-gradient(135deg, #fffcf4 55%, #80601a); }
+  .hall-dot[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .hall-dot.gold     { background: linear-gradient(135deg, #c9a227 50%, #1a1525); }
+  .hall-dot.vienna   { background: linear-gradient(135deg, #d4af37 45%, #3d1a1a); }
+  .hall-dot.midnight { background: linear-gradient(135deg, #4a9eff 45%, #141428); }
+  .hall-dot.london   { background: linear-gradient(135deg, #ec407a 45%, #221829); }
 
   /* ── Tabs ───────────────────────────────────────────────────────────────── */
   nav.tabs { display: flex; gap: 2px; padding: 0 28px; border-bottom: 1px solid var(--edge); background: var(--bg-deep); flex-wrap: wrap; }
@@ -176,7 +177,7 @@
     padding: 12px 16px; cursor: pointer; font-size: .95rem; letter-spacing: .01em;
   }
   nav.tabs button:hover { color: var(--ink); }
-  nav.tabs button[aria-selected="true"] { color: var(--gold); border-bottom-color: var(--gold); }
+  nav.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
 
   /* ── Layout ─────────────────────────────────────────────────────────────── */
   header, nav.tabs { flex: 0 0 auto; }
@@ -210,7 +211,10 @@
    * every actual control below the fold. Nothing in this page can be allowed to reserve space for a
    * player that does not exist.
    */
-  .nowplaying { border: 1px solid var(--edge); border-radius: 10px; background: var(--surface); overflow: hidden; margin-bottom: 22px; }
+  .nowplaying {
+    border: 1px solid rgba(var(--glow), .18); border-radius: 10px; overflow: hidden; margin-bottom: 22px;
+    background: linear-gradient(180deg, var(--panel-end) 0%, var(--bg) 100%);
+  }
   .nowplaying .frame { display: block; }
   /* 16:9 only when a player is in it. An EMPTY frame must reserve no space: sized unconditionally,
      it was six hundred pixels of black pushing every control below the fold. */
@@ -228,7 +232,7 @@
      broken, so it is a title card: the work, who is playing, and one way out to hear it. */
   .nowplaying .idle > div { max-width: 46ch; }
   .stage-work { font-size: 1.45rem; color: var(--ink); font-style: normal; line-height: 1.25; }
-  .stage-perf { font-size: .9rem; color: var(--gold); margin-top: 7px; font-style: normal; }
+  .stage-perf { font-size: .9rem; color: var(--accent); margin-top: 7px; font-style: normal; }
   .stage-go { margin-top: 18px; }
   .stage-why { margin-top: 11px; font-size: .74rem; color: var(--dim); font-style: normal; }
   .nowplaying .bar { padding: 13px 16px; display: flex; gap: 14px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
@@ -242,7 +246,7 @@
   section.panel[aria-hidden="false"] { display: block; }
   h2 {
     font-size: .76rem; font-weight: 600; letter-spacing: .17em; text-transform: uppercase;
-    color: var(--gold-soft); margin: 26px 0 12px; font-family: system-ui, sans-serif;
+    color: var(--accent-soft); margin: 26px 0 12px; font-family: system-ui, sans-serif;
   }
   h2:first-child { margin-top: 0; }
   .hint { color: var(--dim); font-size: .88rem; margin: -6px 0 14px; font-style: italic; }
@@ -252,19 +256,20 @@
   .grid.people { grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); }
 
   .card {
-    border: 1px solid var(--edge); border-radius: 9px; background: var(--surface);
+    border: 1px solid var(--edge); border-radius: 9px;
+    background: linear-gradient(135deg, var(--panel-start) 0%, var(--panel-end) 100%);
     padding: 14px 15px; display: flex; flex-direction: column; gap: 9px; min-width: 0;
   }
   .card.clickable { cursor: pointer; }
   .card.clickable:hover { border-color: var(--edge-bright); background: var(--surface-2); }
   .card .title { font-size: 1.02rem; color: var(--ink); line-height: 1.3; }
-  .card .who { font-size: .85rem; color: var(--gold); }
+  .card .who { font-size: .85rem; color: var(--accent); }
   .card .meta { font-size: .76rem; color: var(--dim); font-family: system-ui, sans-serif; }
 
   .badge {
     display: inline-block; font-family: system-ui, sans-serif; font-size: .64rem; font-weight: 600;
     letter-spacing: .09em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px;
-    border: 1px solid var(--edge-bright); color: var(--gold-soft); white-space: nowrap;
+    border: 1px solid var(--edge-bright); color: var(--accent-soft); white-space: nowrap;
   }
   .badge.period { color: var(--ok); border-color: var(--ok); }
   .badge.heard { color: var(--dim); }
@@ -274,16 +279,16 @@
     width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 6px;
     background: var(--surface-2); border: 1px solid var(--edge); display: block;
   }
-  .portrait.blank { display: flex; align-items: center; justify-content: center; font-size: 1.6rem; color: var(--gold-soft); }
+  .portrait.blank { display: flex; align-items: center; justify-content: center; font-size: 1.6rem; color: var(--accent-soft); }
 
   /* ── Controls ───────────────────────────────────────────────────────────── */
   .btn {
     background: var(--surface-2); color: var(--ink); border: 1px solid var(--edge-bright);
     border-radius: 6px; padding: 7px 13px; cursor: pointer; font-size: .88rem;
   }
-  .btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+  .btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   .btn:disabled { opacity: .45; cursor: default; }
-  .btn.primary { background: linear-gradient(160deg, rgba(var(--glow), .22), rgba(var(--glow), .06)); border-color: var(--gold); color: var(--gold); }
+  .btn.primary { background: linear-gradient(160deg, rgba(var(--glow), .22), rgba(var(--glow), .06)); border-color: var(--accent); color: var(--accent); }
   .btn.play::before { content: "▶"; margin-right: 6px; font-size: .8em; }
 
   .ask { display: flex; gap: 9px; align-items: stretch; flex-wrap: wrap; margin-bottom: 8px; }
@@ -291,7 +296,7 @@
     flex: 1 1 320px; min-width: 0; background: var(--surface); color: var(--ink);
     border: 1px solid var(--edge); border-radius: 6px; padding: 10px 12px;
   }
-  .ask input:focus, select:focus, textarea:focus { outline: 1px solid var(--gold); border-color: var(--gold); }
+  .ask input:focus, select:focus, textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
   select {
     background: var(--surface); color: var(--ink); border: 1px solid var(--edge);
     border-radius: 6px; padding: 9px 11px;
@@ -301,28 +306,28 @@
     background: none; border: 1px dashed var(--edge-bright); color: var(--dim);
     border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: .82rem; font-style: italic;
   }
-  .chip:hover { color: var(--gold); border-color: var(--gold); border-style: solid; }
+  .chip:hover { color: var(--accent); border-color: var(--accent); border-style: solid; }
 
   /* The 1-10 rating. Ten stars, because the realm's ratings are 1-10 and five halves would be a lie. */
   .rate { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
   .stars { display: inline-flex; gap: 1px; }
   .star { cursor: pointer; color: var(--edge-bright); font-size: 1.05rem; line-height: 1; user-select: none; }
-  .star.on { color: var(--gold); }
+  .star.on { color: var(--accent); }
   .rate-label { font-family: system-ui, sans-serif; font-size: .72rem; color: var(--dim); min-width: 62px; }
 
   /* ── The guide panel ────────────────────────────────────────────────────── */
   .guide-head { padding: 16px 18px 13px; border-bottom: 1px solid var(--edge); }
-  .guide-name { font-size: 1.15rem; color: var(--gold); }
+  .guide-name { font-size: 1.15rem; color: var(--accent); }
   .guide-tag { font-size: .8rem; color: var(--dim); font-style: italic; margin-top: 3px; }
   .guide-thread { flex: 1 1 auto; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 15px; min-height: 220px; }
   .turn { font-size: .93rem; }
   .turn.them { color: var(--ink); }
   .turn.them .lead { color: var(--dim); font-family: system-ui, sans-serif; font-size: .66rem; letter-spacing: .13em; text-transform: uppercase; display: block; margin-bottom: 4px; }
-  .turn.him { color: var(--ink); border-left: 2px solid var(--gold-soft); padding-left: 12px; }
-  .turn.him .lead { color: var(--gold-soft); font-family: system-ui, sans-serif; font-size: .66rem; letter-spacing: .13em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .turn.him { color: var(--ink); border-left: 2px solid var(--accent-soft); padding-left: 12px; }
+  .turn.him .lead { color: var(--accent-soft); font-family: system-ui, sans-serif; font-size: .66rem; letter-spacing: .13em; text-transform: uppercase; display: block; margin-bottom: 4px; }
   .turn p { margin: 0 0 9px; }
   .turn p:last-child { margin-bottom: 0; }
-  .turn em { color: var(--gold-soft); }
+  .turn em { color: var(--accent-soft); }
   .grounded {
     font-family: system-ui, sans-serif; font-size: .67rem; color: var(--dim);
     margin-top: 7px; padding-top: 6px; border-top: 1px dotted var(--edge);
@@ -338,9 +343,9 @@
 
   /* ── State messages ─────────────────────────────────────────────────────── */
   .note { color: var(--dim); font-style: italic; padding: 14px 0; }
-  .note.work { color: var(--gold-soft); }
+  .note.work { color: var(--accent-soft); }
   .error {
-    color: var(--accent); border: 1px solid var(--accent); border-radius: 7px;
+    color: var(--alarm); border: 1px solid var(--alarm); border-radius: 7px;
     padding: 11px 13px; font-size: .88rem; background: rgba(192,72,92,.07);
   }
   .error code { font-family: ui-monospace, Menlo, monospace; font-size: .85em; }
@@ -352,14 +357,14 @@
   }
   table.rows td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
   .figures { display: flex; gap: 26px; flex-wrap: wrap; margin-bottom: 6px; }
-  .figure .n { font-size: 1.9rem; color: var(--gold); line-height: 1.1; }
+  .figure .n { font-size: 1.9rem; color: var(--accent); line-height: 1.1; }
   .figure .l { font-family: system-ui, sans-serif; font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
 
   /* ── How it works ───────────────────────────────────────────────────────── */
   #how-it-works { display: none; }
   #how-it-works:target { display: block; }
   .hiw { max-width: 76ch; padding-bottom: 24px; }
-  .hiw h3 { font-size: 1.25rem; color: var(--gold); margin: 26px 0 8px; font-weight: 400; }
+  .hiw h3 { font-size: 1.25rem; color: var(--accent); margin: 26px 0 8px; font-weight: 400; }
   .hiw h4 { font-size: .95rem; color: var(--ink); margin: 18px 0 4px; font-weight: 400; }
   .hiw p { margin: 0 0 10px; }
   .hiw pre {
@@ -375,34 +380,6 @@
 <body>
 
 <header>
-    <svg class="hall-mark" viewBox="0 0 120 72" fill="none" aria-hidden="true" focusable="false">
-      <!-- Musikverein: a gilded bay — fluted columns either side of a caryatid, laurel above. -->
-      <g class="mark-musikverein" stroke="currentColor" stroke-width="1.1">
-        <path d="M18 66V18M26 66V18M94 66V18M102 66V18"/>
-        <path d="M12 18h20M88 18h20M12 66h20M88 66h20"/>
-        <path d="M44 66V34a16 16 0 0 1 32 0v32" />
-        <circle cx="60" cy="22" r="7"/>
-        <path d="M40 12q20-9 40 0M46 8q14-6 28 0"/>
-      </g>
-      <!-- La Scala: swagged velvet, drawn up in three falls over a box front. -->
-      <g class="mark-scala" stroke="currentColor" stroke-width="1.1">
-        <path d="M6 10h108"/>
-        <path d="M6 10q18 30 36 0M42 10q18 30 36 0M78 10q18 30 36 0"/>
-        <path d="M24 26v34M60 26v34M96 26v34"/>
-        <path d="M10 60h100M10 68h100"/>
-      </g>
-      <!-- Bayreuth: the exposed timber fan of the Festspielhaus. No ornament; that is the point. -->
-      <g class="mark-bayreuth" stroke="currentColor" stroke-width="1.1">
-        <path d="M60 8 8 62M60 8l52 54M60 8v54"/>
-        <path d="M34 35h52M22 48h76M8 62h104"/>
-      </g>
-      <!-- Concertgebouw: a plaster rosette under an arch. -->
-      <g class="mark-concertgebouw" stroke="currentColor" stroke-width="1.1">
-        <path d="M14 66V38a46 46 0 0 1 92 0v28"/>
-        <circle cx="60" cy="40" r="16"/><circle cx="60" cy="40" r="7"/>
-        <path d="M60 24v-8M60 64v-8M44 40h-8M84 40h-8M48 28 42 22M72 52l6 6M72 28l6-6M48 52l-6 6"/>
-      </g>
-    </svg>
   <div class="masthead">
     <div>
       <h1>Im<em>promptu</em></h1>
@@ -410,8 +387,10 @@
     </div>
     <div class="halls" role="group" aria-label="Hall">
       <span>Hall</span>
-      <button class="hall-dot musikverein" data-hall="musikverein" title="Musikverein — the Golden Hall: gold leaf and ivory" aria-pressed="true"></button>
-      <button class="hall-dot scala" data-hall="scala" title="La Scala — crimson velvet and gold" aria-pressed="false"></button>
+      <button class="hall-dot gold" data-hall="gold" title="Gold — classic concert hall" aria-pressed="true"></button>
+      <button class="hall-dot vienna" data-hall="vienna" title="Vienna — Musikverein red and gold" aria-pressed="false"></button>
+      <button class="hall-dot midnight" data-hall="midnight" title="Midnight — a late recital" aria-pressed="false"></button>
+      <button class="hall-dot london" data-hall="london" title="London — Royal Albert Hall" aria-pressed="false"></button>
       <button class="hall-dot bayreuth" data-hall="bayreuth" title="Bayreuth — bare wood, no gilt, the house in darkness" aria-pressed="false"></button>
       <button class="hall-dot concertgebouw" data-hall="concertgebouw" title="Concertgebouw — white plaster and gold, in daylight" aria-pressed="false"></button>
     </div>
@@ -744,7 +723,7 @@ LIMIT 50</pre>
       b.setAttribute("aria-pressed", String(b.getAttribute("data-hall") === h));
     });
   }
-  setHall(readHall() || "musikverein");
+  setHall(readHall() || "gold");
   Array.prototype.forEach.call(document.querySelectorAll(".hall-dot"), function (b) {
     b.addEventListener("click", function () { setHall(b.getAttribute("data-hall")); });
   });
