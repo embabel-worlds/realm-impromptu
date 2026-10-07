@@ -41,36 +41,52 @@
    * `--glow` exists because the header and stage washes were hardcoded gold rgba, which is wrong on
    * a light ground; every tint now comes from the hall.
    */
+  /*
+   * Four rooms, separated by LIGHTNESS first and hue second.
+   *
+   * Two attempts failed the same way. All four were near-black with a few degrees of hue between
+   * them: measured, the three dark halls sat within ΔL* 1.0-2.5 of each other, and anything under
+   * about 2 is imperceptible side by side. They were one colour wearing four names, and hue cannot
+   * rescue that — at L* 4 a deep crimson and a warm black both read as black.
+   *
+   * So the backgrounds are now spread across the range people actually perceive (L* 4 / 13 / 19 / 95)
+   * and each room's character rides on top of that:
+   *
+   *   Musikverein    the Golden Hall. The DARKEST, so the gold leaf is the only bright thing in it.
+   *   La Scala       crimson velvet, lifted until the red is genuinely red rather than a black with
+   *                  a story attached.
+   *   Bayreuth       Wagner's anti-theatre: bare wood, no boxes, NO GILT. The LIGHTEST of the dark
+   *                  three and the most matte — it is a timber room, not a jewel box, and a gilded
+   *                  Bayreuth would be a prettier lie than a plain one.
+   *   Concertgebouw  white plaster and gold, in daylight. The one light palette.
+   *
+   * Every hall clears WCAG AA for body and secondary text; the figures are in the commit.
+   */
   :root,
   :root[data-hall="musikverein"] {
-    --bg: #16110a; --bg-deep: #0c0906; --surface: #221a0f; --surface-2: #2f2415;
-    --edge: #403015; --edge-bright: #6b5222;
-    --gold: #f0cc72; --gold-soft: #b79a53; --ink: #f8f1e0; --dim: #a2947a;
+    --bg: #120d05; --bg-deep: #080501; --surface: #241a0c; --surface-2: #332612;
+    --edge: #4a3817; --edge-bright: #7d6029;
+    --gold: #f5cf6e; --gold-soft: #bda05a; --ink: #f8f1e0; --dim: #a2947a;
     --accent: #c0392b; --ok: #8fae6a;
-    --glow: 240, 204, 114;
+    --glow: 245, 207, 110;
   }
   :root[data-hall="scala"] {
-    --bg: #1b0a0d; --bg-deep: #100508; --surface: #2a0f14; --surface-2: #3a161c;
-    --edge: #5a2029; --edge-bright: #8c3340;
-    --gold: #edc87c; --gold-soft: #b8905a; --ink: #faece9; --dim: #b2908d;
-    --accent: #d94452; --ok: #8aa86d;
-    --glow: 217, 68, 82;
+    --bg: #420c1a; --bg-deep: #2d0711; --surface: #5c1628; --surface-2: #732038;
+    --edge: #8a2d45; --edge-bright: #b04459;
+    --gold: #f3cf85; --gold-soft: #d0a468; --ink: #ffeae8; --dim: #deaaa8;
+    --accent: #ff7a86; --ok: #a8c489;
+    --glow: 243, 207, 133;
   }
   :root[data-hall="bayreuth"] {
-    /* No gold. Wagner had the house unadorned and the auditorium dark, and a gilded Bayreuth would
-       be a prettier lie than a plain one. The brightest thing here is lamplight on wood. */
-    --bg: #1a1410; --bg-deep: #100c09; --surface: #251c15; --surface-2: #32261c;
-    --edge: #3f3124; --edge-bright: #634c36;
-    --gold: #d9a566; --gold-soft: #9e7748; --ink: #efe6da; --dim: #9b8c7a;
-    --accent: #a85a3c; --ok: #87a070;
-    --glow: 217, 165, 102;
+    --bg: #3a2c1e; --bg-deep: #2a2016; --surface: #4d3b28; --surface-2: #5e4932;
+    --edge: #6d5639; --edge-bright: #91754f;
+    --gold: #e8b877; --gold-soft: #c69a5f; --ink: #f6efe3; --dim: #c9b79f;
+    --accent: #d98355; --ok: #a3bd84;
+    --glow: 232, 184, 119;
   }
   :root[data-hall="concertgebouw"] {
-    /* The light one. White plaster, gold ornament, red seats — read in daylight. */
     --bg: #f5f0e4; --bg-deep: #ebe4d3; --surface: #fffcf4; --surface-2: #f2ebdb;
     --edge: #d9cdb4; --edge-bright: #b9a685;
-    /* #9a7320 was prettier and failed WCAG AA on this ground at 3.8:1 — and gold is what links are
-       drawn in here, so that is body text failing, not an ornament. 5.1:1. */
     --gold: #80601a; --gold-soft: #6b4e14; --ink: #241f17; --dim: #6b6153;
     --accent: #a8332e; --ok: #4f6b3a;
     --glow: 128, 96, 26;
@@ -113,6 +129,27 @@
       radial-gradient(900px 260px at 14% -40%, rgba(var(--glow), .16), transparent 70%),
       linear-gradient(180deg, var(--bg-deep), var(--bg));
   }
+  /*
+   * A MOTIF PER HALL, because colour alone was not enough to tell them apart — and would never be
+   * for anybody who does not see colour the way I was assuming. Each room gets the thing it is
+   * actually known for, drawn in line: the Musikverein's gilded caryatid bay, La Scala's swagged
+   * velvet, Bayreuth's exposed timber fan, the Concertgebouw's plaster rosette.
+   *
+   * It draws in `currentColor` so it takes the hall's gold, sits behind the masthead at low opacity,
+   * and is `aria-hidden` — it is ornament, and a screen reader announcing "caryatid" would be noise.
+   */
+  .hall-mark {
+    position: absolute; right: 190px; top: 50%; transform: translateY(-50%);
+    width: 120px; height: 72px; color: var(--gold); opacity: .3; pointer-events: none;
+  }
+  .hall-mark g { display: none; }
+  :root[data-hall="musikverein"]   .mark-musikverein,
+  :root:not([data-hall])           .mark-musikverein,
+  :root[data-hall="scala"]         .mark-scala,
+  :root[data-hall="bayreuth"]      .mark-bayreuth,
+  :root[data-hall="concertgebouw"] .mark-concertgebouw { display: block; }
+  header { position: relative; overflow: hidden; }
+  @media (max-width: 900px) { .hall-mark { display: none; } }
   .masthead { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
   h1 {
     margin: 0; font-size: 2.1rem; font-weight: 400; letter-spacing: .015em;
@@ -127,10 +164,10 @@
     border: 1px solid var(--edge-bright); background: var(--surface-2);
   }
   .hall-dot[aria-pressed="true"] { outline: 2px solid var(--gold); outline-offset: 2px; }
-  .hall-dot.musikverein   { background: linear-gradient(135deg, #f0cc72 55%, #3a2c13); }
-  .hall-dot.scala         { background: linear-gradient(135deg, #edc87c 45%, #8c1f2b); }
-  .hall-dot.bayreuth      { background: linear-gradient(135deg, #d9a566 45%, #2a2018); }
-  .hall-dot.concertgebouw { background: linear-gradient(135deg, #fffcf4 55%, #9a7320); }
+  .hall-dot.musikverein   { background: linear-gradient(135deg, #f5cf6e 50%, #120d05); }
+  .hall-dot.scala         { background: linear-gradient(135deg, #f3cf85 35%, #5c1628); }
+  .hall-dot.bayreuth      { background: linear-gradient(135deg, #e8b877 35%, #4d3b28); }
+  .hall-dot.concertgebouw { background: linear-gradient(135deg, #fffcf4 55%, #80601a); }
 
   /* ── Tabs ───────────────────────────────────────────────────────────────── */
   nav.tabs { display: flex; gap: 2px; padding: 0 28px; border-bottom: 1px solid var(--edge); background: var(--bg-deep); flex-wrap: wrap; }
@@ -317,12 +354,55 @@
   .figures { display: flex; gap: 26px; flex-wrap: wrap; margin-bottom: 6px; }
   .figure .n { font-size: 1.9rem; color: var(--gold); line-height: 1.1; }
   .figure .l { font-family: system-ui, sans-serif; font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+
+  /* ── How it works ───────────────────────────────────────────────────────── */
+  #how-it-works { display: none; }
+  #how-it-works:target { display: block; }
+  .hiw { max-width: 76ch; padding-bottom: 24px; }
+  .hiw h3 { font-size: 1.25rem; color: var(--gold); margin: 26px 0 8px; font-weight: 400; }
+  .hiw h4 { font-size: .95rem; color: var(--ink); margin: 18px 0 4px; font-weight: 400; }
+  .hiw p { margin: 0 0 10px; }
+  .hiw pre {
+    background: var(--bg-deep); border: 1px solid var(--edge); border-radius: 6px;
+    padding: 11px 13px; overflow-x: auto; font-family: ui-monospace, Menlo, monospace;
+    font-size: .76rem; line-height: 1.5; color: var(--ink);
+  }
+  .hiw-params { font-family: system-ui, sans-serif; font-size: .76rem; color: var(--dim); }
+  .hiw table.rows td:first-child { white-space: nowrap; padding-right: 18px; }
   footer { margin-top: 28px; padding: 18px 0 0; color: var(--dim); font-size: .78rem; border-top: 1px solid var(--edge); }
 </style>
 </head>
 <body>
 
 <header>
+    <svg class="hall-mark" viewBox="0 0 120 72" fill="none" aria-hidden="true" focusable="false">
+      <!-- Musikverein: a gilded bay — fluted columns either side of a caryatid, laurel above. -->
+      <g class="mark-musikverein" stroke="currentColor" stroke-width="1.1">
+        <path d="M18 66V18M26 66V18M94 66V18M102 66V18"/>
+        <path d="M12 18h20M88 18h20M12 66h20M88 66h20"/>
+        <path d="M44 66V34a16 16 0 0 1 32 0v32" />
+        <circle cx="60" cy="22" r="7"/>
+        <path d="M40 12q20-9 40 0M46 8q14-6 28 0"/>
+      </g>
+      <!-- La Scala: swagged velvet, drawn up in three falls over a box front. -->
+      <g class="mark-scala" stroke="currentColor" stroke-width="1.1">
+        <path d="M6 10h108"/>
+        <path d="M6 10q18 30 36 0M42 10q18 30 36 0M78 10q18 30 36 0"/>
+        <path d="M24 26v34M60 26v34M96 26v34"/>
+        <path d="M10 60h100M10 68h100"/>
+      </g>
+      <!-- Bayreuth: the exposed timber fan of the Festspielhaus. No ornament; that is the point. -->
+      <g class="mark-bayreuth" stroke="currentColor" stroke-width="1.1">
+        <path d="M60 8 8 62M60 8l52 54M60 8v54"/>
+        <path d="M34 35h52M22 48h76M8 62h104"/>
+      </g>
+      <!-- Concertgebouw: a plaster rosette under an arch. -->
+      <g class="mark-concertgebouw" stroke="currentColor" stroke-width="1.1">
+        <path d="M14 66V38a46 46 0 0 1 92 0v28"/>
+        <circle cx="60" cy="40" r="16"/><circle cx="60" cy="40" r="7"/>
+        <path d="M60 24v-8M60 64v-8M44 40h-8M84 40h-8M48 28 42 22M72 52l6 6M72 28l6-6M48 52l-6 6"/>
+      </g>
+    </svg>
   <div class="masthead">
     <div>
       <h1>Im<em>promptu</em></h1>
@@ -414,10 +494,208 @@
       <div id="heardOut"></div>
     </section>
 
+    <!-- ── How it works ─────────────────────────────────────────────────────
+         In the app, not a second file: a separate page detaches from every fork and copy, and an
+         explanation that can separate from its app eventually will — and then it lies. Revealed by
+         the footer link via :target, so it survives a reload and can be linked to. -->
+    <section class="panel hiw" id="how-it-works" aria-hidden="false">
+      <h2>How this app works</h2>
+      <p class="hint">What it reads, what it asks, what an empty panel means, and what the appliance
+        did here.</p>
+
+      <h3>1 &middot; The data</h3>
+      <p>Everything comes from the <strong>impromptu</strong> realm. Nothing about music is stored in
+        advance: the catalogue is fetched when a query traverses it and cached, so there is no import
+        to run and nothing going stale on a shelf.</p>
+      <table class="rows">
+        <tr><th>Type</th><th>Where it comes from</th><th>Freshness</th></tr>
+        <tr><td>MusicalComposer<br>MusicalWork</td><td>Open Opus, a free keyless catalogue of about 150 well-known composers. Fetched on demand through <code>COMPOSED_BY</code>, <code>HAS_COMPOSER</code> and <code>HAS_WORK</code>.</td><td>cached 30 days &mdash; a composer&rsquo;s dates do not move</td></tr>
+        <tr><td>MusicalRecording</td><td>A web search restricted to <code>youtube.com/watch</code>, through the <strong>research</strong> realm. Each hit&rsquo;s URL <em>is</em> the watch link.</td><td>cached 7 days</td></tr>
+        <tr><td>ListeningRequest<br>MusicalEra</td><td>Nothing is stored. The words you type are the key, pinned inline, and the works are generated against them.</td><td>cached 7 days per distinct request</td></tr>
+        <tr><td>MusicalListen<br>MusicalWorkRating<br>MusicalTaste<br>MusicalListener</td><td><strong>Yours</strong>, stored in your world&rsquo;s graph. Written when you press play, rate something, or tell Maestro a boundary.</td><td>live</td></tr>
+      </table>
+      <p><code>prePiano</code> &mdash; the &ldquo;period instruments&rdquo; badge &mdash; is computed
+        from the catalogue&rsquo;s own death year, not judged by a model: true when the composer died
+        before 1850.</p>
+
+      <h3>2 &middot; The questions</h3>
+      <p>Every named view this app runs, with the Virtual Cypher that actually executes, read back
+        from the server. Virtual joins (<code>OPENS_WITH</code>, <code>HAS_WORK</code>,
+        <code>HAS_RECORDING</code>, <code>SIMILAR_TO</code>, <code>SUGGESTS</code>,
+        <code>INFLUENCED_BY</code>) materialise when a query traverses them &mdash; the fetch happens
+        inside the query, not before it.</p>
+        <article>
+          <h4>SomethingToHearFast</h4>
+          <p>Works that answer a listening request — titles only, no recording lookup, answers quickly.</p>
+          <p class="hiw-params">Parameters: <code>ask</code></p>
+          <pre>MATCH (lr:ListeningRequest {request: $ask})-[:OPENS_WITH]-&gt;(w:MusicalWork)
+RETURN DISTINCT w.composer AS Composer, w.title AS Work, w.genre AS Genre
+ORDER BY Composer ASC, Work ASC</pre>
+        </article>
+        <article>
+          <h4>SomethingToHear</h4>
+          <p>Works that answer a listening request in your own words — no ratings needed, each with a recording.</p>
+          <p class="hiw-params">Parameters: <code>ask</code></p>
+          <pre>MATCH (lr:ListeningRequest {request: $ask})-[:OPENS_WITH]-&gt;(w:MusicalWork)
+MATCH (w)-[:HAS_RECORDING]-&gt;(r:MusicalRecording)
+WITH w, head(collect(DISTINCT r)) AS rec
+RETURN w.composer    AS Composer,
+       w.title       AS Work,
+       w.genre       AS Genre,
+       rec.title     AS Performance,
+       rec.url       AS Recording
+LIMIT 8</pre>
+        </article>
+        <article>
+          <h4>ComposersOfEra</h4>
+          <p>Every catalogued composer of one style period, with dates and a portrait.</p>
+          <p class="hiw-params">Parameters: <code>era</code></p>
+          <pre>MATCH (e:MusicalEra {name: $era})-[:HAS_COMPOSER]-&gt;(c:MusicalComposer)
+RETURN c.completeName AS Composer,
+       c.name         AS ShortName,
+       c.birth        AS Born,
+       c.death        AS Died,
+       c.prePiano     AS PeriodInstruments,
+       c.portrait     AS Portrait,
+       c.composerId   AS ComposerId
+ORDER BY Born ASC, Composer ASC</pre>
+        </article>
+        <article>
+          <h4>MeetAComposerFast</h4>
+          <p>A composer&#x27;s best-known works from the catalogue — titles only, instant.</p>
+          <p class="hiw-params">Parameters: <code>composerId</code></p>
+          <pre>MATCH (c:MusicalComposer {composerId: $composerId})-[:HAS_WORK]-&gt;(w:MusicalWork)
+MATCH (w)-[:COMPOSED_BY]-&gt;(full:MusicalComposer)
+RETURN full.completeName AS Composer,
+       full.portrait     AS Portrait,
+       full.epoch        AS Period,
+       full.prePiano     AS PeriodInstruments,
+       w.workId          AS WorkId,
+       w.title           AS Work,
+       w.genre           AS Genre,
+       w.searchQuery     AS SearchQuery
+ORDER BY Genre ASC, Work ASC</pre>
+        </article>
+        <article>
+          <h4>ComposerLineage</h4>
+          <p>Composers held to have shaped this one&#x27;s music — the line backwards, and older music you may be half-ready for.</p>
+          <p class="hiw-params">Parameters: <code>composer</code></p>
+          <pre>MATCH (c:MusicalComposer {name: $composer})-[:INFLUENCED_BY]-&gt;(earlier:MusicalComposer)
+RETURN earlier.completeName AS Influence,
+       earlier.epoch        AS Period,
+       earlier.birth        AS Born,
+       earlier.death        AS Died,
+       earlier.prePiano     AS PeriodInstruments
+ORDER BY Born ASC</pre>
+        </article>
+        <article>
+          <h4>WorkRecommendations</h4>
+          <p>Top 5 works you&#x27;d like — each with a recording to hear.</p>
+          <p class="hiw-params">Parameters: none</p>
+          <pre>MATCH (me:AssistantUser)-[:RATED]-&gt;(rt:MusicalWorkRating) WHERE rt.rating &gt;= 8
+MATCH (rt)-[:SIMILAR_TO]-&gt;(w:MusicalWork)
+WHERE NOT EXISTS { (me)-[:RATED]-&gt;(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
+MATCH (w)-[:HAS_RECORDING]-&gt;(r:MusicalRecording)
+WITH w, count(DISTINCT rt) AS overlap,
+     head(collect(DISTINCT r)) AS rec
+RETURN w.composer AS Composer,
+       w.title    AS Work,
+       rec.title  AS Performance,
+       rec.url    AS Recording,
+       overlap    AS LovedWorksPointingHere
+LIMIT 5</pre>
+        </article>
+        <article>
+          <h4>TasteBasedRecommendations</h4>
+          <p>Works matching your overall taste — each with a recording to hear.</p>
+          <p class="hiw-params">Parameters: none</p>
+          <pre>MATCH (me:AssistantUser)-[:HAS_MUSICAL_TASTE_SUMMARY]-&gt;(ts:MusicalTasteSummary)
+MATCH (ts)-[:SUGGESTS]-&gt;(w:MusicalWork)
+WHERE NOT EXISTS { (me)-[:RATED]-&gt;(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
+MATCH (w)-[:HAS_RECORDING]-&gt;(r:MusicalRecording)
+WITH w,
+     head(collect(DISTINCT r)) AS rec
+RETURN w.composer AS Composer,
+       w.title    AS Work,
+       w.genre    AS Genre,
+       rec.title  AS Performance,
+       rec.url    AS Recording
+LIMIT 8</pre>
+        </article>
+        <article>
+          <h4>MyListening</h4>
+          <p>Where you have got to as a listener — how much you know, how hard you want to be pushed, and what you have heard.</p>
+          <p class="hiw-params">Parameters: none</p>
+          <pre>MATCH (me:AssistantUser)
+OPTIONAL MATCH (me)-[:LISTENS_AS]-&gt;(l:MusicalListener)
+OPTIONAL MATCH (me)-[:RATED]-&gt;(r:MusicalWorkRating)
+OPTIONAL MATCH (me)-[:HEARD]-&gt;(h:MusicalListen)
+OPTIONAL MATCH (me)-[:HAS_TASTE]-&gt;(t:MusicalTaste)
+RETURN coalesce(l.knowledge, &#x27;not yet read&#x27;)        AS Knowledge,
+       coalesce(l.challenge, 0)                     AS ChallengeAppetite,
+       count(DISTINCT r)                            AS WorksRated,
+       count(DISTINCT h)                            AS WorksHeard,
+       count(DISTINCT t)                            AS StancesStated</pre>
+        </article>
+        <article>
+          <h4>MyMusicalStances</h4>
+          <p>What you have said you love, avoid, or are curious about — by form, period, instrument or practice.</p>
+          <p class="hiw-params">Parameters: none</p>
+          <pre>MATCH (me:AssistantUser)-[:HAS_TASTE]-&gt;(t:MusicalTaste)
+RETURN t.stance  AS Stance,
+       t.kind    AS Dimension,
+       t.value   AS Value,
+       t.because AS Because,
+       t.statedAt AS Stated
+ORDER BY CASE t.stance WHEN &#x27;curious&#x27; THEN 0 WHEN &#x27;loves&#x27; THEN 1 WHEN &#x27;likes&#x27; THEN 2
+                       WHEN &#x27;avoids&#x27; THEN 3 ELSE 4 END, Value ASC</pre>
+        </article>
+        <article>
+          <h4>WhatIHaveHeard</h4>
+          <p>Your listening history — the work, the performance, and whether you heard it through.</p>
+          <p class="hiw-params">Parameters: none</p>
+          <pre>MATCH (me:AssistantUser)-[:HEARD]-&gt;(h:MusicalListen)
+RETURN h.heardAt     AS Heard,
+       h.composer    AS Composer,
+       h.title       AS Work,
+       h.performance AS Performance,
+       h.finished    AS HeardThrough,
+       h.url         AS Recording
+ORDER BY Heard DESC
+LIMIT 50</pre>
+        </article>
+
+      <h3>3 &middot; When it looks wrong</h3>
+      <table class="rows">
+        <tr><th>What you see</th><th>What it means</th></tr>
+        <tr><td>&ldquo;What you love&rdquo; is empty</td><td>Those two views anchor on works you rated 8 or more. With no ratings there is nothing to anchor on, and the view says so rather than guessing. Use <em>Ask for something</em>, which needs no history.</td></tr>
+        <tr><td>An ask returns nothing</td><td>The generator named works the catalogue could not identify, so they were dropped &mdash; it holds only about 150 composers. The engine reports this as <code>RESOLUTION_DROPPED</code> with a sample of what it lost. A famous composer&rsquo;s <em>neglected</em> work resolves where an obscure composer&rsquo;s masterpiece does not.</td></tr>
+        <tr><td>&ldquo;No recording found&rdquo;</td><td>The search found no <code>youtube.com/watch</code> result, or the <strong>research</strong> realm is not installed and <code>BRAVE_API_KEY</code> is unset. Everything else keeps working; only listen and score links go quiet.</td></tr>
+        <tr><td>A figure disagrees with Open Opus</td><td>Catalogue reads are cached for 30 days. Inside that window a mismatch is the cache, not a bug.</td></tr>
+        <tr><td>Maestro names performers but gives no link</td><td>Deliberate. In conversation he has no search running, and a model asked for a recording will invent a watch URL that looks exactly real. He names the performance instead; the surface attaches the real link.</td></tr>
+      </table>
+
+      <h3>4 &middot; What made this possible</h3>
+      <p>The composer wall is one HTTP call and <strong>no model call at all</strong>: an era, its
+        composers, their dates and portraits arrive as a Cypher traversal of a catalogue that was
+        never imported. On a conventional stack that is an ingest job, a schema and a staleness
+        window.</p>
+      <p>&ldquo;Forty minutes, nothing soothing&rdquo; is answered by generating inside the query and
+        resolving each suggestion onto the catalogue&rsquo;s own ids, so a generated recommendation
+        dedupes against what you have already heard. The generation, the resolution and the anti-join
+        are one question rather than a pipeline.</p>
+      <p>This page has no backend. It asks the world by view name at load; there is no service to
+        deploy or keep patched, and the Cypher above is the Cypher that ran.</p>
+      <p>The limits are on this page too, which is the point of it: a catalogue of ~150 composers, a
+        recommendation that is a model&rsquo;s judgement rather than a fact, and an influence edge
+        that is generated rather than catalogued &mdash; shown as a scholarly view, never as a date.</p>
+    </section>
+
 <footer>
   Works and composers from <a href="https://openopus.org/" target="_blank" rel="noopener noreferrer">Open Opus</a>;
   recordings found on YouTube; scores on <a href="https://imslp.org/" target="_blank" rel="noopener noreferrer">IMSLP</a>.
   Maestro's opinions are his own and are written down in the realm, where you can read them.
+  <a href="#how-it-works" id="hiwLink">How it works</a>
 </footer>
   </div>
 
