@@ -206,17 +206,44 @@
    * above 420px. The glow is the theme accent behind it, so the one warm asset still belongs on the
    * cool themes, which is how the original handled its ten.
    */
-  h1 { margin: 0; line-height: 0; }
+  /*
+   * The logo's own edge is never the visible edge.
+   *
+   * The old app's `.header-logo-container` carried `padding: 0 80px` and a left-to-right gradient
+   * that went dark at the outer 5% and transparent across the middle, so the asset's hard boundary
+   * dissolved into the header instead of stopping there. This had it framed with a 4px radius
+   * instead, which drew a line at exactly the wrong place: the wordmark's final U sits 4px from the
+   * source image's right edge, so the frame landed on the letter and the whole graphic read as
+   * chopped off. The asset ships that way — `piano_wide.jpg` and `piano_wide_2.jpg` both do — so the
+   * canvas is extended 84px to the right with its own texture, and the mask fades the boundary out
+   * over the outer few percent, which is the old header's trick by another name.
+   *
+   * The mask is asymmetric because the artwork is: the piano's leftmost leg starts 3% in, where the
+   * wordmark now has 9% of clear ground after it.
+   */
+  h1 { margin: 0; line-height: 0; filter: drop-shadow(0 0 26px rgba(var(--glow), .3)); }
   h1 img {
-    width: 420px; height: auto; display: block; border-radius: 4px;
-    filter: drop-shadow(0 0 26px rgba(var(--glow), .3));
+    width: 462px; height: auto; display: block;
+    /* Both axes, intersected, so the asset dissolves on all four sides rather than ending on two.
+       A browser without `mask-composite` keeps the horizontal gradient, which is the side the
+       complaint was about — the fallback is the fix, just less of it. */
+    -webkit-mask-image:
+      linear-gradient(90deg, transparent 0, #000 3%, #000 92%, transparent 100%),
+      linear-gradient(180deg, transparent 0, #000 5%, #000 95%, transparent 100%);
+            mask-image:
+      linear-gradient(90deg, transparent 0, #000 3%, #000 92%, transparent 100%),
+      linear-gradient(180deg, transparent 0, #000 5%, #000 95%, transparent 100%);
+    -webkit-mask-composite: source-in;
+            mask-composite: intersect;
   }
-  @media (max-width: 760px) { h1 img { width: 280px; } }
+  @media (max-width: 760px) { h1 img { width: 308px; } }
   /* The masthead competes with the panes for a fixed viewport, so on a short screen it gives way
      first — the logo is the most decorative thing here and the Ask button is the least. Caught by
-     the layout test at 1280x760, where the full-size logo pushed the page 14px over. */
-  @media (max-height: 820px) { h1 img { width: 320px; } header { padding: 16px 28px 12px; } }
-  @media (max-height: 700px) { h1 img { width: 250px; } header { padding: 12px 28px 10px; } }
+     the layout test at 1280x760, where the full-size logo pushed the page 14px over. The widths are
+     the pre-padding ones scaled by 924/840, so the WORDMARK is the size it always was and every
+     rendered height is unchanged — the padding is horizontal, and the panes below care about height. */
+  @media (max-height: 820px) { h1 img { width: 352px; } header { padding: 16px 28px 12px; } }
+  @media (max-height: 700px) { h1 img { width: 275px; } header { padding: 12px 28px 10px; } }
   .tagline { margin: 4px 0 0; color: var(--dim); font-size: .95rem; font-style: italic; }
   .halls { display: flex; gap: 6px; align-items: center; }
   .halls span { font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
@@ -447,7 +474,7 @@
 <header>
   <div class="masthead">
     <div>
-      <h1><img src="impromptu-logo.jpg" alt="Impromptu" width="420" height="166"></h1>
+      <h1><img src="impromptu-logo.jpg" alt="Impromptu" width="462" height="166"></h1>
       <p class="tagline">Music you have not met yet — and an argument about which performance.</p>
     </div>
     <div class="halls" role="group" aria-label="Hall">
@@ -919,6 +946,29 @@ LIMIT 50</pre>
    * an embed is permitted rather than merely attempted. The link out stays beside it for anyone who
    * wants the full site, and a recording with no parseable id still degrades to the card.
    */
+  /**
+   * Bring the player into view, from wherever the click came from.
+   *
+   * It was `window.scrollTo({top: 0})`, which does nothing on a desktop width: `.stage` is the
+   * scroller there, not the document, so the page could not move and the player stayed above the
+   * rows somebody had scrolled down through. They pressed Find a recording, it worked, and nothing
+   * they could see changed — the worst kind of failure, because it looks like nothing happened.
+   *
+   * `scrollIntoView` asks the ELEMENT to be shown and the browser scrolls whichever ancestors are
+   * scrollable, so it is right in both layouts: the column on desktop, the document on a phone.
+   */
+  function revealPlayer() {
+    var np = document.querySelector(".nowplaying");
+    if (np && np.scrollIntoView) np.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  /** The Listen button for a work that has a recording — the one place that pairing is built. */
+  function listenAction(work) {
+    var b = el("button", "btn play primary", "Listen");
+    b.addEventListener("click", function () { play(work); revealPlayer(); });
+    return b;
+  }
+
   function play(work) {
     playing = work;
     var frame = document.getElementById("frame");
@@ -1060,18 +1110,22 @@ LIMIT 50</pre>
 
     var row = el("div", "np-actions");
     if (w.url) {
-      var b = el("button", "btn play primary", "Listen");
-      b.addEventListener("click", function () { play(w); window.scrollTo({ top: 0, behavior: "smooth" }); });
-      row.appendChild(b);
+      row.appendChild(listenAction(w));
     } else {
       var find = el("button", "btn play", "Find a recording");
       find.addEventListener("click", function () {
         find.disabled = true; find.textContent = "Looking…";
         findRecording(w).then(function (rec) {
-          if (!rec) { find.textContent = "None found"; return; }
+          if (!rec) { find.disabled = false; find.textContent = "None found"; return; }
           w.url = rec.url; w.performance = rec.title;
+          /* The search is over, so the button must stop saying it is searching. Swapped for the
+             Listen button the `w.url` branch above would have built, rather than relabelled: the
+             card now holds a work WITH a recording, and that is what such a card offers. Leaving
+             "Looking…" on a button whose work is already playing is the app lying about itself. */
+          row.replaceChild(listenAction(w), find);
+          if (w.performance) card.insertBefore(el("div", "meta", w.performance), row);
           play(w);
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          revealPlayer();
         }).catch(function (e) {
           find.disabled = false;
           find.textContent = "Search failed";

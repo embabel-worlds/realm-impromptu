@@ -203,3 +203,127 @@ test.describe("the page fits its viewport", () => {
     await ctx.close();
   });
 });
+
+/**
+ * Finding a recording has to be VISIBLE, and has to stop saying it is still looking.
+ *
+ * Both halves shipped broken, and both were silent. The success path set `w.url`, played the work
+ * and returned, never touching the button it had relabelled — so a card whose recording was already
+ * playing sat there reading "Looking…" forever. And it scrolled with `window.scrollTo({top: 0})`,
+ * which does nothing at a desktop width: `.stage` is the scroller, not the document. The player is
+ * at the top of that column, so somebody who had scrolled down through the works got the recording
+ * they asked for, out of sight, above them, while the button said the search was still running.
+ * Pressing a button and seeing nothing change is indistinguishable from pressing a dead button.
+ *
+ * The Brave search is stubbed by replacing `window.gateway.brave.webSearch` after load — the app
+ * captured that object once, so it sees the replacement — which keeps the test off the live search
+ * quota while the rest of the path stays real.
+ */
+test.describe("finding a recording", () => {
+  test.skip(!TOKEN, "IMPROMPTU_TOKEN is not set — cannot reach the appliance, so nothing is proven.");
+
+  test("reveals the player and stops saying 'Looking…'", async ({ browser }) => {
+    const ctx = await browser.newContext({
+      extraHTTPHeaders: { Authorization: `Bearer ${TOKEN}` },
+      viewport: { width: 1280, height: 760 },
+    });
+    const page = await ctx.newPage();
+    await page.goto(APP, { waitUntil: "domcontentloaded" });
+
+    /* The catalogue path: facts, one call, no model — so this is fast and the same every run. */
+    await page.locator('nav.tabs button[data-panel="browse"]').click();
+    await page.locator("#eraGo").click();
+    await page.waitForSelector("#eraOut .card", { timeout: 30000 });
+    await page.locator("#eraOut .card").first().click();
+    await page.waitForSelector("#composerOut .card", { timeout: 30000 });
+
+    await page.evaluate(() => {
+      window.gateway.brave.webSearch = () =>
+        Promise.resolve({
+          web: { results: [{ url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "A Performance, 2019" }] },
+        });
+    });
+
+    const find = page.locator('button:has-text("Find a recording")').first();
+    await expect(find, "no work offered a recording search, so this proves nothing").toHaveCount(1);
+
+    /* Scroll the COLUMN to the bottom first: that is the state the bug needed, and the state a
+       reader is actually in when they reach a work far down the list. */
+    const before = await page.evaluate(() => {
+      const stage = document.querySelector(".stage");
+      stage.scrollTop = stage.scrollHeight;
+      return { top: stage.scrollTop, player: document.querySelector(".nowplaying").getBoundingClientRect().top };
+    });
+    expect(before.player, "the player was already in view, so revealing it proves nothing").toBeLessThan(0);
+
+    await find.scrollIntoViewIfNeeded();
+    await find.click();
+    await page.waitForTimeout(2500);
+
+    const after = await page.evaluate(() => {
+      const np = document.querySelector(".nowplaying").getBoundingClientRect();
+      return {
+        inView: np.bottom > 0 && np.top < window.innerHeight,
+        playing: !!document.querySelector("#frame iframe"),
+        looking: Array.from(document.querySelectorAll("button")).some((b) => b.textContent.includes("Looking")),
+        listen: Array.from(document.querySelectorAll("button")).some((b) => b.textContent.trim() === "Listen"),
+      };
+    });
+
+    expect(after.playing, "the recording was found but never reached the player").toBe(true);
+    expect(after.inView, "the player stayed out of view, so the result looked like nothing happened").toBe(true);
+    expect(after.looking, "a button still claims to be searching after the search finished").toBe(false);
+    expect(after.listen, "the card did not become one you can listen to").toBe(true);
+    await ctx.close();
+  });
+});
+
+/**
+ * The masthead asset is not cropped at the wordmark.
+ *
+ * `piano_wide_2.jpg` ships with its final U four pixels from the right edge, and this app framed it
+ * with a border-radius — drawing a hard line at exactly that point, so the whole graphic read as
+ * chopped off. The canvas is now extended with its own texture and the edges are masked out, the
+ * way the old app's header did it with `padding: 0 80px` and a gradient.
+ *
+ * Measured in PIXELS of the served image rather than in CSS, because the failure is a property of
+ * the asset: anybody re-exporting it can take the clear ground away again, and a CSS assertion
+ * would not notice.
+ */
+test.describe("the masthead", () => {
+  test.skip(!TOKEN, "IMPROMPTU_TOKEN is not set — cannot reach the appliance, so nothing is proven.");
+
+  test("leaves clear ground after the wordmark, and no hard frame", async ({ browser }) => {
+    const ctx = await browser.newContext({ extraHTTPHeaders: { Authorization: `Bearer ${TOKEN}` } });
+    const page = await ctx.newPage();
+    await page.goto(APP, { waitUntil: "networkidle" });
+
+    const m = await page.evaluate(() => {
+      const img = document.querySelector("h1 img");
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      const g = c.getContext("2d");
+      g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      const brightest = (x) => {
+        let m = 0;
+        for (let y = 0; y < c.height; y++) {
+          const i = (y * c.width + x) * 4;
+          m = Math.max(m, (d[i] + d[i + 1] + d[i + 2]) / 3);
+        }
+        return m;
+      };
+      let gap = -1;
+      for (let x = c.width - 1; x >= 0; x--) if (brightest(x) > 110) { gap = c.width - 1 - x; break; }
+      const cs = getComputedStyle(img);
+      return { gap, width: c.width, radius: cs.borderTopRightRadius, mask: cs.maskImage || cs.webkitMaskImage || "none" };
+    });
+
+    expect(m.width, "the logo did not decode, so nothing below is measured").toBeGreaterThan(0);
+    expect(m.gap, `only ${m.gap}px of clear ground right of the wordmark — it reads as cropped`).toBeGreaterThanOrEqual(60);
+    expect(m.radius, "a rounded frame draws a hard edge across the artwork").toBe("0px");
+    expect(m.mask, "the asset's edge is not faded, so it ends in a visible rectangle").toContain("gradient");
+    await ctx.close();
+  });
+});
