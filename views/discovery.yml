@@ -24,7 +24,10 @@
 # The cold start, and the most important view in the realm. A listening request in the listener's own
 # words, generated against, each pick given a recording to press play on. No ratings needed.
 - name: SomethingToHear
-  description: Works that answer a listening request in your own words — no ratings needed, each with a recording.
+  description: >-
+    Works that answer a listening request in your own words, each with a recording. No ratings
+    needed. At most eight works, and only those the catalogue can identify and a recording search
+    finds; SomethingToHearFast skips the recording lookup.
   params:
     ask:
       type: string
@@ -44,7 +47,9 @@
 # The same request, titles only — no per-work web search, so it answers in seconds rather than a
 # minute. The right view when somebody is browsing rather than choosing.
 - name: SomethingToHearFast
-  description: Works that answer a listening request — titles only, no recording lookup, answers quickly.
+  description: >-
+    Works that answer a listening request in your own words, titles only. No recording lookup, so it
+    answers quickly; SomethingToHear adds a recording to each.
   params:
     ask:
       type: string
@@ -58,7 +63,9 @@
 # Browse by period. A fact from the catalogue: no generation, no ratings, no model. The handhold for
 # a listener whose only clue about their own taste is "I liked something old".
 - name: ComposersOfEra
-  description: Every catalogued composer of one style period, with dates and a portrait.
+  description: >-
+    Every catalogued composer of one style period, with dates and a portrait. Oldest first. Only the
+    catalogue's own era spellings match (Baroque, Early Romantic, …); no works are listed here.
   params:
     era:
       type: string
@@ -93,7 +100,10 @@
 # COMPOSED_BY. So hop to it as a target — the works carry `composerId`, COMPOSED_BY is batched, and the
 # full record arrives with its portrait.
 - name: MeetAComposer
-  description: A composer's best-known works, each with a recording — and whether period instruments are the honest choice.
+  description: >-
+    A composer's best-known works, each with a recording to hear. And whether period instruments are
+    the honest choice. At most twelve works, from the catalogue's shortlist, widened to its full
+    list only when the shortlist is empty.
   params:
     composerId:
       type: string
@@ -137,7 +147,10 @@
 # Their line backwards — who this composer learned from. A scholarly claim, generated, so each row
 # carries what it is: present it as "generally held to have learned from", never as a date.
 - name: ComposerLineage
-  description: Composers held to have shaped this one's music — the line backwards, and older music you may be half-ready for.
+  description: >-
+    Composers held to have shaped this one's music, oldest first. The line backwards, and older
+    music you may be half-ready for. A generated scholarly view, not a documented fact: each edge
+    carries a confidence, and nobody born later is included.
   params:
     composer:
       type: string
@@ -156,7 +169,10 @@
 # OPTIONAL-matched throughout so it answers honestly on an empty graph rather than returning nothing,
 # which is the difference between "you are new here" and a view that looks broken.
 - name: MyListening
-  description: Where you have got to as a listener — how much you know, how hard you want to be pushed, and what you have heard.
+  description: >-
+    How far you have got as a listener: knowledge, appetite for challenge, history. How much you
+    know, how hard you want to be pushed, and what you have heard. Your own listener record only,
+    not anyone else's.
   cypher: |
     MATCH (me:AssistantUser)
     OPTIONAL MATCH (me)-[:LISTENS_AS]->(l:MusicalListener)
@@ -172,7 +188,9 @@
 # The boundaries and the openings, which is what steers everything else. `curious` is the row that
 # matters most and the easiest to forget you ever said.
 - name: MyMusicalStances
-  description: What you have said you love, avoid, or are curious about — by form, period, instrument or practice.
+  description: >-
+    What you love, avoid or are curious about, by form, period or instrument. Stances on dimensions
+    of music, curious first; not opinions of single works, which are ratings.
   cypher: |
     MATCH (me:AssistantUser)-[:HAS_TASTE]->(t:MusicalTaste)
     RETURN t.stance  AS Stance,
@@ -186,7 +204,9 @@
 # The listening log — what was played, which performance, and whether it was heard through. A work
 # started and abandoned is the most useful row here.
 - name: WhatIHaveHeard
-  description: Your listening history — the work, the performance, and whether you heard it through.
+  description: >-
+    Your listening history: the work, the performance, whether you finished it. Newest first, at
+    most the last fifty listens; a work you rated but never logged hearing is not here.
   cypher: |
     MATCH (me:AssistantUser)-[:HEARD]->(h:MusicalListen)
     RETURN h.heardAt     AS Heard,

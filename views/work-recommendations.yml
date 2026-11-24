@@ -42,7 +42,9 @@
 # SUGGESTS), each pick given a recording. Same "listen" shape as WorkRecommendations, but sourced from
 # your overall taste rather than similars to any one work.
 - name: TasteBasedRecommendations
-  description: Works matching your overall taste — each with a recording to hear.
+  description: >-
+    Works matching your overall taste, each with a recording to hear. At most eight, and never a
+    work you have already rated.
   cypher: |
     MATCH (me:AssistantUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary)
     MATCH (ts)-[:SUGGESTS]->(w:MusicalWork)
@@ -83,7 +85,9 @@
 # recorded. A TABULAR view so it can fall back to "No works rated" when you have no summary yet: anchor on
 # the (always-present) user, OPTIONAL MATCH the virtual summary, and coalesce the empty case to a message.
 - name: MyMusicTaste
-  description: Your taste in classical music — or "No works rated" if you have not rated anything.
+  description: >-
+    A summary of your taste in classical music, from your ratings. Or "No works rated" if you have
+    not rated anything; it reads ratings only, not listens or stated stances.
   cypher: |
     MATCH (me:AssistantUser)
     OPTIONAL MATCH (me)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary)
@@ -107,7 +111,9 @@
 
 # Works TWO OR MORE people both love (rated 8+) — "what would they both enjoy at a concert".
 - name: MutualFavourites
-  description: Works loved (8+) by two or more people — who would enjoy hearing them together.
+  description: >-
+    Works loved (8+) by two or more people, who might hear them together. Only ratings of 8 or more
+    count, and a work one person loves is not listed.
   cypher: |
     MATCH (r:MusicalWorkRating) WHERE r.rating >= 8
     WITH r.workId AS workId, r.composer AS composer, r.title AS title, collect(DISTINCT r.raterName) AS lovers
@@ -117,7 +123,9 @@
 
 # The flip side — works people most disagree on: one loves it (8+), another can't stand it (<=3).
 - name: DividedOpinions
-  description: Works people most disagree on — one loves it, another can't stand it.
+  description: >-
+    Works people most disagree on: one loves it, another can't stand it. Only pairs where one rated
+    it 8 or more and a different person 3 or less; mild disagreements are not listed.
   cypher: |
     MATCH (hi:MusicalWorkRating) WHERE hi.rating >= 8
     MATCH (lo:MusicalWorkRating) WHERE lo.rating <= 3 AND lo.workId = hi.workId AND lo.raterId <> hi.raterId

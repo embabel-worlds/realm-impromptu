@@ -27,3 +27,6 @@ Thumbs.db
 # diagnostic for the run that produced it and means nothing in another checkout.
 test-results/
 playwright-report/
+
+# Bytecode from the Python battery.
+__pycache__/

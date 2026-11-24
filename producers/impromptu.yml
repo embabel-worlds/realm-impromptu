@@ -116,9 +116,14 @@
     url: "url"
     title: "title"
     description: "description"
+  # Filters NOTHING: a web search takes a query string and a count, and none of url, title or
+  # description can be asked of it as a predicate. Declared empty so the engine knows every WHERE on a
+  # recording runs over the eight hits after the fetch.
+  pushdown: []
   cache:
     kind: ttl
     seconds: 604800                  # 7 days — the top recordings for a canonical work are stable
+    negativeTtlSeconds: 86400        # a work with no YouTube hit is asked again tomorrow, not every query
 
 # workTasteSummary: the fan-IN producer behind HAS_MUSICAL_TASTE_SUMMARY. The mirror of similarWorks — where
 # that GENERATES many works off one rating, this GATHERS all the user's MusicalWorkRatings and REDUCES them to
@@ -337,6 +342,7 @@
   cache:
     kind: ttl
     seconds: 2592000               # 30 days — a dead composer's dates do not move
+    negativeTtlSeconds: 86400      # an id the catalogue does not hold stays empty; ask again daily, not every query
 
 # composersOfEra: HAS_COMPOSER. The browse surface for "something Baroque" — the catalogue's own
 # list for a period, which is a fact and so costs no model call.
@@ -352,6 +358,7 @@
   cache:
     kind: ttl
     seconds: 2592000               # 30 days — who belongs to the Baroque is settled
+    negativeTtlSeconds: 86400      # an era spelling the catalogue does not use stays empty; ask again daily, not every query
 
 # worksOfComposer: HAS_WORK. The catalogue's best-known works for a composer. `Popular` here is the
 # catalogue's pseudo-genre, not an endorsement of popularity: it is the set a listener meeting a
@@ -362,13 +369,21 @@
   operation: findWorksOfComposer
   keyArg: composerIds
   records: "$[*]"
-  # Filters NOTHING: the catalogue serves a whole listing for one key and has no predicate surface at
-  # all, so there is nothing to push down. Declared empty deliberately — claiming a filter it does
-  # not apply would make the engine count an unfiltered set as though it were narrowed.
-  pushdown: []
+  args:
+    # The catalogue lists a composer's works BY GENRE, so `WHERE w.genre = 'Chamber'` is asked of it
+    # rather than filtered afterwards — and that is a matter of correctness, not only of cost: with no
+    # genre the verb returns the first non-empty rung of Popular/Recommended/all, and filtering that
+    # shortlist for Chamber would miss every chamber work the shortlist leaves out. Unpushed, the
+    # placeholder arrives unrendered and the verb reads it as no genre.
+    genre: "{filters}"
+  pushdown:
+    - property: genre
+      op: EQUALS
+      qualifier: "{value}"
   cache:
     kind: ttl
     seconds: 2592000               # 30 days — a catalogue listing
+    negativeTtlSeconds: 86400      # a composer with no listed works stays empty; ask again daily, not every query
 
 # composerLineage: INFLUENCED_BY — the old standalone app's INFLUENCED edge, which a human
 # musicologist approved row by row in a CSV. Generated here instead, and every edge therefore carries

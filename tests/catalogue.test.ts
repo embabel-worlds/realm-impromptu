@@ -313,6 +313,15 @@ describe("findWorksOfComposer widening", () => {
     expect(worksByGenre).toHaveBeenCalledTimes(1);
   });
 
+  it("reads a pushed-down genre, and treats the unrendered placeholder as no genre", async () => {
+    const worksByGenre = vi.fn().mockResolvedValue({ composer: { name: "Rameau" }, works: [] });
+    await findWorksOfComposer(gatewayWith({ worksByGenre }), { composerIds: ["178"], genre: ["Keyboard"] });
+    expect(worksByGenre.mock.calls.map((c) => c[0].genre)).toEqual(["Keyboard"]);
+    worksByGenre.mockClear();
+    await findWorksOfComposer(gatewayWith({ worksByGenre }), { composerIds: ["178"], genre: "{filters}" });
+    expect(worksByGenre.mock.calls.map((c) => c[0].genre)).toEqual(["Popular", "Recommended", "all"]);
+  });
+
   it("does NOT widen past a genre the caller asked for — that would answer a different question", async () => {
     const worksByGenre = vi.fn().mockResolvedValue(emptyGenre);
     const out = await findWorksOfComposer(gatewayWith({ worksByGenre }), { composerIds: ["178"], genre: "Chamber" });

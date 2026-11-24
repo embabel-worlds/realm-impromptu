@@ -134,11 +134,33 @@
         This composer's best-known works, from the Open Opus catalogue. Not a recommendation and not
         generated — the catalogue's own list, so it is instant and never invents a work. Use it to walk
         INTO a composer you have never heard: (c:MusicalComposer)-[:HAS_WORK]->(w:MusicalWork).
+        `WHERE w.genre = 'Chamber'` (Orchestral, Chamber, Keyboard, Stage or Vocal) is asked of the
+        catalogue, so it returns every chamber work it holds for the composer, not just the
+        shortlisted ones.
+  examples:
+    - q: "what chamber music did Brahms write"
+      cypher: |
+        MATCH (c:MusicalComposer {composerId: '80'})-[:HAS_WORK]->(w:MusicalWork)
+        WHERE w.genre = 'Chamber'
+        RETURN w.title AS work, w.subtitle AS subtitle
+        ORDER BY work
+    - q: "find me a recording of one of Brahms's best-known works"
+      cypher: |
+        MATCH (c:MusicalComposer {composerId: '80'})-[:HAS_WORK]->(w:MusicalWork)
+        MATCH (w)-[:HAS_RECORDING]->(r:MusicalRecording)
+        RETURN w.title AS work, r.title AS performance, r.url AS listen
+        LIMIT 5
+    - q: "which Baroque composers are there, oldest first"
+      cypher: |
+        MATCH (e:MusicalEra {name: 'Baroque'})-[:HAS_COMPOSER]->(c:MusicalComposer)
+        RETURN c.completeName AS composer, c.birth AS born, c.death AS died
+        ORDER BY born
 
 - name: MusicalRecording
   userAnchor: false
   description: |
-    A RECORDING of a MusicalWork — a performance on YouTube, found via web search. VIRTUAL:
+    A RECORDING of a MusicalWork — one performance on YouTube, found via web search, identified by
+    its watch `url`. VIRTUAL:
     fetched on demand when a query traverses HAS_RECORDING; never stored. Use it to answer
     "find me a recording of X" and to attach a listen link to a recommendation:
       MATCH (w:MusicalWork)-[:HAS_RECORDING]->(r:MusicalRecording) RETURN w.title, r.title, r.url
@@ -171,7 +193,8 @@
   # of its own. Musical-prefixed label + edge so this pack's fan-in node can't collide with another pack's.
   userAnchor: false
   description: |
-    A one-per-user synthesis of the user's taste in classical music, distilled from their MusicalWorkRatings.
+    A one-per-user synthesis of the user's taste in classical music, distilled from their MusicalWorkRatings,
+    keyed by `summaryFor` (the user).
     VIRTUAL — there is no stored MusicalTasteSummary; it is materialized on demand by aggregating (fan-IN) the
     user's ratings into ~100 words (producer `workTasteSummary`, cached weekly). Reach it from the user and
     read `ts.summary`:
@@ -205,7 +228,7 @@
 
 - name: MusicalWorkRating
   description: |
-    A rating of a MusicalWork, attributed to a PERSON in the workspace — the current user OR any Person they've
+    A rating of a MusicalWork, keyed `<raterId>::<workId>` (ratingKey), attributed to a PERSON in the workspace — the current user OR any Person they've
     recorded a rating for (a friend, a family member). One rating per (rater, work): re-rating updates in place.
     Reads power "what have I rated?", "what did <person> think of X?", the "exclude already-heard" filter, and
     cross-person queries like "works <A> and <B> would both like".
@@ -253,8 +276,8 @@
 - name: MusicalComposer
   userAnchor: false
   description: |
-    A composer as the Open Opus catalogue records them — complete name, style period, dates, and a
-    portrait. VIRTUAL: fetched on demand when a query traverses COMPOSED_BY, HAS_COMPOSER or
+    A composer as the Open Opus catalogue records them, identified by `composerId` (the Open Opus id) —
+    complete name, style period, dates, and a portrait. VIRTUAL: fetched on demand when a query traverses COMPOSED_BY, HAS_COMPOSER or
     INFLUENCED_BY, and never stored. `portrait` is a real image URL, so a surface can show a face
     rather than a name:
       MATCH (w:MusicalWork)-[:COMPOSED_BY]->(c:MusicalComposer) RETURN c.completeName, c.portrait
@@ -344,7 +367,8 @@
 
 - name: MusicalListen
   description: |
-    That a person HEARD a work — the listening log, separate from what they thought of it. A rating
+    That a person HEARD a work: one listening event, keyed `<listenerId>::<workId>::<heardAt>` (listenKey) —
+    the listening log, separate from what they thought of it. A rating
     is an opinion and arrives only when someone bothers to give one; a listen is an event, and
     without it the realm cannot tell "you have not heard this" from "you did not like it", and will
     cheerfully offer the same piece a third time.
@@ -374,7 +398,8 @@
 
 - name: MusicalTaste
   description: |
-    A stance on a DIMENSION of music rather than on a work — a form, a period, an instrument, a
+    One person's stance on a DIMENSION of music rather than on a work, keyed `<personId>::<kind>::<value>`
+    (tasteKey) — a form, a period, an instrument, a
     performance practice, a mood. "No solo piano." "Period instruments or nothing, for anything
     before Beethoven." "I want to be taken somewhere difficult."
     This is what a rating cannot say and a proposition cannot be joined on. Reads steer every
@@ -392,7 +417,7 @@
     personId: "The Person this stance belongs to."
     kind:
       description: "Which dimension this is about: 'composer', 'era', 'genre', 'form', 'instrument', 'practice' (e.g. period instruments, historically informed), 'mood', 'language', 'length'."
-    value: "The dimension's value in the listener's own terms — 'solo piano', 'Baroque', 'opera in German', 'anything over an hour', 'period instruments'."
+    value: "The dimension's value in the listener's own words, free text (not a number or a measure) — 'solo piano', 'Baroque', 'opera in German', 'anything over an hour', 'period instruments'."
     stance:
       description: "Where they stand: 'loves', 'likes', 'curious' (would try it), 'avoids' (not now), 'hates'. 'curious' is the most useful value in the set and the easiest to lose — it is the dimension to push on next."
     because: "Why, in their own words, where they said. Quote it rather than paraphrasing; it is the thing that makes a later recommendation sound like it was listening."
@@ -401,7 +426,7 @@
 - name: MusicalListener
   description: |
     Where one person has got to as a listener: how much they know, and how hard they want to be
-    pushed. One node per person, updated in place.
+    pushed. One node per person, keyed by their own id (listenerKey), updated in place.
     These two values change what a good recommendation IS — the same request from a newcomer and
     from a conservatoire student deserves different music and a different explanation — so they
     cannot live only in a conversation. A notebook set holds them for the exchange in progress
