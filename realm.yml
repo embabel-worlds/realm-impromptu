@@ -35,7 +35,7 @@ description: |
   `gateway.brave.webSearch`, plus a BRAVE_API_KEY. Without it the catalogue, the
   ratings, the listening record and every titles-only view still work; only the
   listen and score links go quiet.
-version: 0.2.1
+version: 0.2.2
 author: Rod Johnson
 # The repo this actually lives in. It said `johnsonr/realm-impromptu`, which is where it started.
 url: https://github.com/embabel-worlds/realm-impromptu
@@ -45,6 +45,12 @@ category: lifestyle
 # generation and Maestro's judgement are a model's, the listening record is new, and nothing here has
 # been lived with over months of real listening yet.
 maturity: experimental
+
+# askMaestro puts the guide's turn to the owner's model. A host that runs handlers captured lets a
+# handler do that only when the realm asks for the model here and the owner grants it at install;
+# without it every turn is refused before the prompt is sent.
+capabilities:
+  - model
 
 tags:
   - music

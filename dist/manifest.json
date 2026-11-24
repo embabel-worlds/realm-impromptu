@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-24T14:17:23.944Z",
+  "generatedAt": "2026-11-24T21:10:23.687Z",
   "entries": [
     {
       "namespace": "impromptu",
@@ -68,7 +68,10 @@
             ]
           },
           "conversation": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -292,7 +295,7 @@
             }
           },
           "genre": {
-            "oneOf": [
+            "anyOf": [
               {
                 "type": "string"
               },
@@ -497,14 +500,7 @@
             "type": "string"
           },
           "finished": {
-            "oneOf": [
-              {
-                "type": "undefined"
-              },
-              {
-                "type": "undefined"
-              }
-            ]
+            "type": "boolean"
           }
         },
         "required": [
@@ -637,7 +633,10 @@
                   }
                 },
                 "work": {
-                  "type": "object",
+                  "type": [
+                    "object",
+                    "null"
+                  ],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -756,7 +755,10 @@
       "name": "recordings",
       "description": "Recordings (performances) of this work — YouTube watch links found via Brave web search restricted to `youtube.com/watch`, so no Google API quota is spent. Each hit's `url` IS the watch link; `title` usually names the performers.",
       "inputSchema": {
-        "type": "object",
+        "type": [
+          "object",
+          "null"
+        ],
         "properties": {
           "count": {
             "type": "number"
@@ -788,7 +790,10 @@
       "name": "scores",
       "description": "IMSLP score pages for this work — a Brave web search restricted to imslp.org. Scores are deliberately NOT a graph join (IMSLP lookup is a slow multi-step crawl); this direct search returns the work pages, each of which lists every public-domain edition. Present the page links; never invent a PDF URL.",
       "inputSchema": {
-        "type": "object",
+        "type": [
+          "object",
+          "null"
+        ],
         "properties": {
           "count": {
             "type": "number"
