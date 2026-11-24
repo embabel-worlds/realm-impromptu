@@ -115,6 +115,16 @@ async function findComposersOfEra(ctx, args) {
  */
 const WIDENING = ["Popular", "Recommended", "all"];
 /**
+ * The genre a caller asked for, or "" for none. It arrives through the producer's pushdown —
+ * `WHERE w.genre = 'Chamber'` rendered into the `{filters}` slot — so it may be a bare string, a
+ * one-element list, or the unrendered placeholder itself when nothing was pushed, which is no ask.
+ */
+const askedGenre = (genre) => {
+    const first = Array.isArray(genre) ? genre[0] : genre;
+    const g = String(first ?? "").trim();
+    return /^\{.*\}$/.test(g) ? "" : g;
+};
+/**
  * A composer's works — HAS_WORK. With no `genre`, this walks the widening chain until the catalogue
  * has something: the set to choose FROM, not an instruction to play the first one.
  *
@@ -129,7 +139,7 @@ async function findWorksOfComposer(ctx, args) {
     const ids = Array.from(new Set((args.composerIds ?? []).map((i) => String(i).trim()).filter(Boolean)));
     if (!ids.length)
         return [];
-    const asked = (args.genre ?? "").trim();
+    const asked = askedGenre(args.genre);
     const chain = asked ? [asked] : WIDENING;
     const api = ctx.openopus;
     const out = [];
