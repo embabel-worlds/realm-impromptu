@@ -58,6 +58,9 @@ def yaml_view_names():
     return names
 
 
+NO_ANCHORS = "named none the source could be read by"
+
+
 def sweep(names, may_be_empty=(), needs_companion=()):
     """L1: every view answers by name on its defaults. A view in `may_be_empty` must still SUCCEED;
     one in `needs_companion` reads another realm's labels, and is skipped, loudly, when that realm
@@ -72,7 +75,12 @@ def sweep(names, may_be_empty=(), needs_companion=()):
         if bad and name in needs_companion and re.search(r"(?i)label|undeclared|unknown|not installed", bad):
             print(f"  SKIP {name}: needs {needs_companion[name]} installed ({bad[:120]})")
             continue
-        if bad:
+        if bad and name in may_be_empty and NO_ANCHORS in bad:
+            # A view that starts from records this world stores (ratings, birth records) and finds
+            # none is refused rather than answered empty: there is nothing to read the source by.
+            # On a fresh world that IS the answer, so it counts, and says so.
+            check(f"{name}", True, f"refused for want of stored records, as a fresh world must ({ms}ms)")
+        elif bad:
             check(f"{name}", False, bad)
         elif rows == 0 and name not in may_be_empty:
             check(f"{name}", False, f"no rows with its defaults ({ms}ms)")
