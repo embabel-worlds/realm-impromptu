@@ -1,0 +1,4 @@
+# The battery library, copied from embabel-worlds/realm-spec battery/ at the tag below.
+# Do not edit these files here: change realm-spec, then `python3 battery/pin.py install`.
+realm-spec v0.2.2
+short.py b2a1791ae8d3abd0539fdd0cc5a2cbc260bbdf35f25995e19425541b68904e3e

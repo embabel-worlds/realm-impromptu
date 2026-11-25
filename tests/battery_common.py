@@ -43,59 +43,23 @@ def check(label, ok, detail=""):
     return ok
 
 
-# Warning codes on a query answer (/admin/kg/execute) that mean rows or values may be missing. A
-# source that failed under load, a capped page or a cut traversal leaves rows that still look like
-# an answer; read as one, the battery reports drift that is the source's, not the realm's. Cost
-# notes (FILTERED_IN_GRAPH, AGGREGATE_NOT_PUSHED, EMPTY_NOT_KEPT, PUSHDOWN_VALUE_UNMATCHED), an
-# honest FILTER_STARVED empty, STALE_COPY, FIELDS_WITHHELD and UNKNOWN_VIA leave every row in place.
-SHORT_CODES = (
-    "PARTIAL_RESULT", "PRODUCER_ERROR", "NEEDS_FILTER", "NEEDS_PRODUCER", "FILTER_REJECTED",
-    "UNPUSHED_FILTER", "AMBIGUOUS_LABEL", "INCOMPLETE_TRAVERSAL", "INCOMPLETE_RANKING",
-    "INCOMPLETE_AGGREGATE", "INCOMPLETE_INPUT", "MATERIALIZATION_FAILED", "REDUCTION_FAILED",
-    "UNPARSEABLE_ANSWER", "TERMS_UNAVAILABLE", "COMPUTE_FAILED", "PROPERTY_NOT_STORED",
-    "FOLLOW_CAPPED", "UNLINKED_CHILDREN", "RESOLUTION_DROPPED", "AGENTIC_DEGRADED",
-    "SOURCE_UNANSWERED",
-)
-# The typed `reason` a query answer carries when it is neither clean nor an honest empty.
-SHORT_REASONS = ("UNBOUNDED", "PARTIAL_NOT_MATCHED", "UNPUSHED_FILTER", "DISCONNECTED",
-                 "INTERNAL_ERROR", "WRITE_IN_PROGRESS", "KILLED", "TOO_EXPENSIVE")
-# The same, as a view envelope's public warning codes. A PARTIAL outcome is SUCCEEDED, so a
-# status check alone counts its rows as the answer.
-SHORT_PUBLIC = ("PARTIAL", "REDUCTION_FAILED", "COMPUTE_FAILED", "PROPERTY_NOT_STORED",
-                "AGENTIC_DEGRADED", "RATE_LIMITED", "SOURCE_UNAVAILABLE", "SOURCE_REJECTED",
-                "INVALID_FILTER", "UNPUSHED_FILTER", "TOO_BROAD", "FETCH_CAPPED",
-                "INDEX_UNAVAILABLE", "ARGUMENT_REFUSED")
+# Whether an answer is the whole truth is the engine's to say, beside the rows: the battery library
+# (tests/lib, pinned from embabel-worlds/realm-spec) decides it, for query, tool and view answers alike.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from short import short as _short  # noqa: E402
 
 
 def short(d, figure=None):
     """None when the engine says this answer is whole; else the line a check prints in place of
-    the figure: `REFUSED: <why>` (no answer) or `PARTIAL <figure>: <the engine's reason>`."""
-    tag = "PARTIAL" if figure is None else f"PARTIAL {figure}"
-    if not isinstance(d, dict):
-        return "REFUSED: not an engine answer: " + str(d)[:160]
-    if "outcome" in d or "status" in d:  # a view envelope
-        if d.get("status") != "SUCCEEDED":
-            err = d.get("error")
-            msg = (f"{err.get('code', '')} {err.get('message', '')}".strip() if isinstance(err, dict) else str(err or ""))
-            # The warnings name the source that failed and how; the message alone does not.
-            why = "; ".join(str(w.get("message") or w.get("code") or w)[:240] if isinstance(w, dict) else str(w)[:240]
-                            for w in d.get("warnings") or [])
-            return f"REFUSED: {d.get('status')} {msg[:200]}{(' | ' + why) if why else ''}".strip()
-        ws = [w for w in d.get("warnings") or [] if isinstance(w, dict) and w.get("code") in SHORT_PUBLIC]
-        if d.get("outcome") not in ("OK", "EMPTY") or ws:
-            why = f"{ws[0]['code']}: {ws[0].get('message', '')}" if ws else f"outcome {d.get('outcome')}"
-            return f"{tag}: {why[:200]}"
-        return None
-    if d.get("error"):
-        return "REFUSED: " + str(d["error"])[:200]
-    if d.get("run"):
-        return f"{tag}: the run had not finished ({d['run']})"
-    ws = [w for w in d.get("warnings") or [] if isinstance(w, str) and w.split(":", 1)[0].strip() in SHORT_CODES]
-    if ws:
-        return f"{tag}: {ws[0][:200]}"
-    if d.get("reason") in SHORT_REASONS:
-        return f"{tag}: reason {d['reason']}"
-    return None
+    the figure: `REFUSED: <why>` (no answer) or `PARTIAL <figure>: <the engine's reason>`. A
+    refused view also carries its warnings, which name the source that failed and how; the
+    message alone does not."""
+    why = _short(d, figure)
+    if why and why.startswith("REFUSED") and isinstance(d, dict) and "status" in d:
+        notes = "; ".join(str(w.get("message") or w.get("code") or w)[:240] if isinstance(w, dict) else str(w)[:240]
+                          for w in d.get("warnings") or [])
+        why += (" | " + notes) if notes else ""
+    return why
 
 
 def problem(env, figure=None):
