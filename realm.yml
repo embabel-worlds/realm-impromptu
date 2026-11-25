@@ -35,7 +35,7 @@ description: |
   `gateway.brave.webSearch`, plus a BRAVE_API_KEY. Without it the catalogue, the
   ratings, the listening record and every titles-only view still work; only the
   listen and score links go quiet.
-version: 0.2.3
+version: 0.2.4
 author: Rod Johnson
 # The repo this actually lives in. It said `johnsonr/realm-impromptu`, which is where it started.
 url: https://github.com/embabel-worlds/realm-impromptu
