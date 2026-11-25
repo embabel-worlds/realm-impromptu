@@ -45,13 +45,14 @@ CYPHER = ("MATCH (c:MusicalComposer {{composerId: '80'}})-[:HAS_WORK{fresh}]->(w
           "WHERE w.genre = 'Chamber' RETURN w.workId AS id")
 res = kg(CYPHER.format(fresh=""))
 got = sorted(str(r["id"]) for r in res.get("rows") or [])
-check("Brahms's chamber works = Open Opus's chamber list", got == chamber, f"{len(got)} vs {len(chamber)}")
+check("Brahms's chamber works = Open Opus's chamber list", got == chamber and not problem(res, len(got)),
+      problem(res, len(got)) or f"{len(got)} vs {len(chamber)}")
 
 print("== L3: the genre is asked of the catalogue")
 res = kg(CYPHER.format(fresh=" {ai: {fresh: true}}"))
 fetched = res.get("fetchedRecords")
-check("fresh: fetched exactly the chamber list", fetched == len(chamber),
-      f"fetchedRecords={fetched}, chamber works={len(chamber)}, apiCalls={res.get('apiCalls')}")
+check("fresh: fetched exactly the chamber list", fetched == len(chamber) and not problem(res, fetched),
+      problem(res, fetched) or f"fetchedRecords={fetched}, chamber works={len(chamber)}, apiCalls={res.get('apiCalls')}")
 check("fresh: one source call", res.get("apiCalls") is not None and res.get("apiCalls") <= 1, f"apiCalls={res.get('apiCalls')}")
 
 finish()
