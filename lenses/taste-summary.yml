@@ -9,7 +9,7 @@ spec:
   kind: cypherscript
   script: |
     const rows = await gateway.kg.query({
-      cypher: `MATCH (me:AssistantUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary)
+      cypher: `MATCH (me:WorldsUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary)
                RETURN ts.summary AS summary, ts.count AS count`,
       params: JSON.stringify({}),
     });

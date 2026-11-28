@@ -100,7 +100,7 @@ picks (see the score section above).
 
 ```js
 const rows = await gateway.kg.query({
-  cypher: `MATCH (me:AssistantUser)-[:RATED]->(rt:MusicalWorkRating) WHERE rt.rating >= 8
+  cypher: `MATCH (me:WorldsUser)-[:RATED]->(rt:MusicalWorkRating) WHERE rt.rating >= 8
            MATCH (rt)-[:SIMILAR_TO]->(w:MusicalWork)
            WHERE NOT EXISTS { (me)-[:RATED]->(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
            MATCH (w)-[:HAS_RECORDING]->(r:MusicalRecording)
@@ -210,7 +210,7 @@ const hit = (res.results || []).find((r) => r.work && r.work.id);
 if (!hit) return `No work matching "${userWork}" on Open Opus — confirm the composer and title.`;
 const work = hit.work, composer = hit.composer, searchQuery = `${composer.name} ${work.title}`;
 // The rater is the current user (also a Person node). ratingKey = "<myId>::<workId>".
-const meRows = await gateway.kg.query({ cypher: "MATCH (me:AssistantUser) RETURN me.id AS id, me.name AS name LIMIT 1", params: JSON.stringify({}) });
+const meRows = await gateway.kg.query({ cypher: "MATCH (me:WorldsUser) RETURN me.id AS id, me.name AS name LIMIT 1", params: JSON.stringify({}) });
 const me = ((meRows && meRows.rows) ? meRows.rows[0] : (meRows && meRows[0])) || {};
 await gateway.repository.createEntry({ type: "MusicalWork", data: {
   workId: work.id, title: work.title, subtitle: work.subtitle, composer: composer.name,
@@ -236,12 +236,12 @@ recording it under their own name.
 ## "What have I rated?" / "What did I think of X?"
 
 Read ratings through VIRTUAL CYPHER, never `listEntries` — the scope rewriter
-binds `(me:AssistantUser)` to the current user, and the `RATED` edge is the
+binds `(me:WorldsUser)` to the current user, and the `RATED` edge is the
 attribution truth even for rows recorded before `raterName` existed:
 
 ```js
 const rows = await gateway.kg.query({
-  cypher: `MATCH (me:AssistantUser)-[:RATED]->(r:MusicalWorkRating)
+  cypher: `MATCH (me:WorldsUser)-[:RATED]->(r:MusicalWorkRating)
            RETURN r.title AS title, r.composer AS composer, r.rating AS rating, r.notes AS notes
            ORDER BY r.rating DESC, r.title ASC`,
   params: JSON.stringify({}),

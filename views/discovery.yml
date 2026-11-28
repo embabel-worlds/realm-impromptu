@@ -9,7 +9,7 @@
 # era, its composers, their works, a composer's lineage — and cost one HTTP call and no model call.
 # Two generate. All six work on first use, with an empty graph.
 #
-# `(me:AssistantUser)` is NAMED wherever a listener's own rows are read, so the scope rewriter binds
+# `(me:WorldsUser)` is NAMED wherever a listener's own rows are read, so the scope rewriter binds
 # it and private listening never leaks. Keep every virtual join in the LEADING MATCH block — a
 # virtual join after a `WITH` is NOT materialized — and put LIMIT/ORDER BY at the end.
 
@@ -174,7 +174,7 @@
     know, how hard you want to be pushed, and what you have heard. Your own listener record only,
     not anyone else's.
   cypher: |
-    MATCH (me:AssistantUser)
+    MATCH (me:WorldsUser)
     OPTIONAL MATCH (me)-[:LISTENS_AS]->(l:MusicalListener)
     OPTIONAL MATCH (me)-[:RATED]->(r:MusicalWorkRating)
     OPTIONAL MATCH (me)-[:HEARD]->(h:MusicalListen)
@@ -192,7 +192,7 @@
     What you love, avoid or are curious about, by form, period or instrument. Stances on dimensions
     of music, curious first; not opinions of single works, which are ratings.
   cypher: |
-    MATCH (me:AssistantUser)-[:HAS_TASTE]->(t:MusicalTaste)
+    MATCH (me:WorldsUser)-[:HAS_TASTE]->(t:MusicalTaste)
     RETURN t.stance  AS Stance,
            t.kind    AS Dimension,
            t.value   AS Value,
@@ -208,7 +208,7 @@
     Your listening history: the work, the performance, whether you finished it. Newest first, at
     most the last fifty listens; a work you rated but never logged hearing is not here.
   cypher: |
-    MATCH (me:AssistantUser)-[:HEARD]->(h:MusicalListen)
+    MATCH (me:WorldsUser)-[:HEARD]->(h:MusicalListen)
     RETURN h.heardAt     AS Heard,
            h.composer    AS Composer,
            h.title       AS Work,

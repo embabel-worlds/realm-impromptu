@@ -308,7 +308,7 @@ export async function popularComposers(
 
 import { personaBySlug, personaSlugs, type PersonaBrief } from "../generated/personas.js";
 
-/** The person a write is attributed to. Their AssistantUser node also carries `Person`. */
+/** The person a write is attributed to. Their WorldsUser node also carries `Person`. */
 interface CurrentPerson {
   id?: string;
   name?: string;
@@ -340,7 +340,7 @@ const queryRows = async <T>(ctx: GenericGatewayContext, cypher: string, params: 
 const currentPerson = async (ctx: GenericGatewayContext): Promise<CurrentPerson> => {
   const rows = await queryRows<CurrentPerson>(
     ctx,
-    "MATCH (me:AssistantUser) RETURN me.id AS id, me.name AS name LIMIT 1",
+    "MATCH (me:WorldsUser) RETURN me.id AS id, me.name AS name LIMIT 1",
   );
   return rows[0] ?? {};
 };
@@ -515,7 +515,7 @@ export async function recordListenerLevel(
   const existing = (
     await queryRows<{ knowledge?: string; challenge?: number; challengeNote?: string }>(
       ctx,
-      `MATCH (me:AssistantUser)-[:LISTENS_AS]->(l:MusicalListener)
+      `MATCH (me:WorldsUser)-[:LISTENS_AS]->(l:MusicalListener)
        RETURN l.knowledge AS knowledge, l.challenge AS challenge, l.challengeNote AS challengeNote LIMIT 1`,
     )
   )[0] ?? {};
@@ -654,24 +654,24 @@ export async function askMaestro(
   const [listener, ratings, listens, stances] = await Promise.all([
     queryRows<{ knowledge?: string; challenge?: number; challengeNote?: string }>(
       ctx,
-      `MATCH (me:AssistantUser)-[:LISTENS_AS]->(l:MusicalListener)
+      `MATCH (me:WorldsUser)-[:LISTENS_AS]->(l:MusicalListener)
        RETURN l.knowledge AS knowledge, l.challenge AS challenge, l.challengeNote AS challengeNote LIMIT 1`,
     ),
     queryRows<{ composer?: string; title?: string; rating?: number; notes?: string }>(
       ctx,
-      `MATCH (me:AssistantUser)-[:RATED]->(r:MusicalWorkRating)
+      `MATCH (me:WorldsUser)-[:RATED]->(r:MusicalWorkRating)
        RETURN r.composer AS composer, r.title AS title, r.rating AS rating, r.notes AS notes
        ORDER BY r.rating DESC, r.title ASC LIMIT 40`,
     ),
     queryRows<{ composer?: string; title?: string; heardAt?: string; finished?: boolean }>(
       ctx,
-      `MATCH (me:AssistantUser)-[:HEARD]->(l:MusicalListen)
+      `MATCH (me:WorldsUser)-[:HEARD]->(l:MusicalListen)
        RETURN l.composer AS composer, l.title AS title, l.heardAt AS heardAt, l.finished AS finished
        ORDER BY l.heardAt DESC LIMIT 20`,
     ),
     queryRows<{ kind?: string; value?: string; stance?: string; because?: string }>(
       ctx,
-      `MATCH (me:AssistantUser)-[:HAS_TASTE]->(t:MusicalTaste)
+      `MATCH (me:WorldsUser)-[:HAS_TASTE]->(t:MusicalTaste)
        RETURN t.kind AS kind, t.value AS value, t.stance AS stance, t.because AS because
        ORDER BY t.stance ASC, t.value ASC LIMIT 30`,
     ),

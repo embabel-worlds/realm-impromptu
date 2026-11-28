@@ -48,7 +48,7 @@ function buildRating(host, workId, title, composer, gw) {
   // The current user's own Person id + name — the rater for a rating made from this card.
   const currentUser = async () => {
     if (me) return me;
-    const res = await gw.kg.query({ cypher: 'MATCH (u:AssistantUser) RETURN u.id AS id, u.name AS name LIMIT 1', params: JSON.stringify({}) });
+    const res = await gw.kg.query({ cypher: 'MATCH (u:WorldsUser) RETURN u.id AS id, u.name AS name LIMIT 1', params: JSON.stringify({}) });
     const rows = (res && res.rows) ? res.rows : (res || []);
     me = rows[0] || {};
     return me;
@@ -88,7 +88,7 @@ function buildRating(host, workId, title, composer, gw) {
 
   // Pre-fill the user's existing rating so re-rating starts where they left off.
   gw.kg.query({
-    cypher: 'MATCH (au:AssistantUser)-[:RATED]->(r:MusicalWorkRating) WHERE r.workId = $id RETURN r.rating AS rating, r.notes AS notes LIMIT 1',
+    cypher: 'MATCH (au:WorldsUser)-[:RATED]->(r:MusicalWorkRating) WHERE r.workId = $id RETURN r.rating AS rating, r.notes AS notes LIMIT 1',
     params: JSON.stringify({ id: workId }),
   }).then((rows) => {
     const list = (rows && rows.rows) ? rows.rows : rows;

@@ -135,9 +135,9 @@
   edgeType: HAS_MUSICAL_TASTE_SUMMARY
   identityField: summaryFor       # one summary per user. NOT `userId`: every fetched node carries that as
                                   # its world scope, so an identity on it collides with the engine's own.
-  anchorKeyField: anchorKey       # echoes each received anchor-identity spelling so every AssistantUser links
+  anchorKeyField: anchorKey       # echoes each received anchor-identity spelling so every WorldsUser links
   collect:
-    anchorLabel: AssistantUser
+    anchorLabel: WorldsUser
     via: RATED
     targetLabel: MusicalWorkRating
     # One text item per rating. ALL ratings count — a 2/10 is taste signal (what they avoid), not noise.

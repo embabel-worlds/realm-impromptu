@@ -9,7 +9,7 @@ spec:
   kind: cypherscript
   script: |
     const top = await gateway.kg.query({
-      cypher: `MATCH (me:AssistantUser)-[:RATED]->(rt:MusicalWorkRating)
+      cypher: `MATCH (me:WorldsUser)-[:RATED]->(rt:MusicalWorkRating)
                RETURN rt.title AS title, rt.composer AS composer, rt.rating AS rating
                ORDER BY rt.rating DESC, rt.title ASC LIMIT 3`,
       params: JSON.stringify({}),

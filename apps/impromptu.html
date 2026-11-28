@@ -666,7 +666,7 @@ ORDER BY Born ASC</pre>
           <h4>WorkRecommendations</h4>
           <p>Top 5 works you&#x27;d like — each with a recording to hear.</p>
           <p class="hiw-params">Parameters: none</p>
-          <pre>MATCH (me:AssistantUser)-[:RATED]-&gt;(rt:MusicalWorkRating) WHERE rt.rating &gt;= 8
+          <pre>MATCH (me:WorldsUser)-[:RATED]-&gt;(rt:MusicalWorkRating) WHERE rt.rating &gt;= 8
 MATCH (rt)-[:SIMILAR_TO]-&gt;(w:MusicalWork)
 WHERE NOT EXISTS { (me)-[:RATED]-&gt;(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
 MATCH (w)-[:HAS_RECORDING]-&gt;(r:MusicalRecording)
@@ -683,7 +683,7 @@ LIMIT 5</pre>
           <h4>TasteBasedRecommendations</h4>
           <p>Works matching your overall taste — each with a recording to hear.</p>
           <p class="hiw-params">Parameters: none</p>
-          <pre>MATCH (me:AssistantUser)-[:HAS_MUSICAL_TASTE_SUMMARY]-&gt;(ts:MusicalTasteSummary)
+          <pre>MATCH (me:WorldsUser)-[:HAS_MUSICAL_TASTE_SUMMARY]-&gt;(ts:MusicalTasteSummary)
 MATCH (ts)-[:SUGGESTS]-&gt;(w:MusicalWork)
 WHERE NOT EXISTS { (me)-[:RATED]-&gt;(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
 MATCH (w)-[:HAS_RECORDING]-&gt;(r:MusicalRecording)
@@ -700,7 +700,7 @@ LIMIT 8</pre>
           <h4>MyListening</h4>
           <p>Where you have got to as a listener — how much you know, how hard you want to be pushed, and what you have heard.</p>
           <p class="hiw-params">Parameters: none</p>
-          <pre>MATCH (me:AssistantUser)
+          <pre>MATCH (me:WorldsUser)
 OPTIONAL MATCH (me)-[:LISTENS_AS]-&gt;(l:MusicalListener)
 OPTIONAL MATCH (me)-[:RATED]-&gt;(r:MusicalWorkRating)
 OPTIONAL MATCH (me)-[:HEARD]-&gt;(h:MusicalListen)
@@ -715,7 +715,7 @@ RETURN coalesce(l.knowledge, &#x27;not yet read&#x27;)        AS Knowledge,
           <h4>MyMusicalStances</h4>
           <p>What you have said you love, avoid, or are curious about — by form, period, instrument or practice.</p>
           <p class="hiw-params">Parameters: none</p>
-          <pre>MATCH (me:AssistantUser)-[:HAS_TASTE]-&gt;(t:MusicalTaste)
+          <pre>MATCH (me:WorldsUser)-[:HAS_TASTE]-&gt;(t:MusicalTaste)
 RETURN t.stance  AS Stance,
        t.kind    AS Dimension,
        t.value   AS Value,
@@ -728,7 +728,7 @@ ORDER BY CASE t.stance WHEN &#x27;curious&#x27; THEN 0 WHEN &#x27;loves&#x27; TH
           <h4>WhatIHaveHeard</h4>
           <p>Your listening history — the work, the performance, and whether you heard it through.</p>
           <p class="hiw-params">Parameters: none</p>
-          <pre>MATCH (me:AssistantUser)-[:HEARD]-&gt;(h:MusicalListen)
+          <pre>MATCH (me:WorldsUser)-[:HEARD]-&gt;(h:MusicalListen)
 RETURN h.heardAt     AS Heard,
        h.composer    AS Composer,
        h.title       AS Work,
@@ -1081,7 +1081,7 @@ LIMIT 50</pre>
 
     if (work.workId) {
       gw.kg.query({
-        cypher: "MATCH (me:AssistantUser)-[:RATED]->(r:MusicalWorkRating) WHERE r.workId = $id RETURN r.rating AS rating LIMIT 1",
+        cypher: "MATCH (me:WorldsUser)-[:RATED]->(r:MusicalWorkRating) WHERE r.workId = $id RETURN r.rating AS rating LIMIT 1",
         params: JSON.stringify({ id: String(work.workId) })
       }).then(function (res) {
         var rows = (res && res.rows) ? res.rows : (res || []);

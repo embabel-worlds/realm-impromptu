@@ -202,7 +202,7 @@ const queryRows = async (ctx, cypher, params = {}) => {
 };
 /** The current user's own Person id and name, from the scoped graph. */
 const currentPerson = async (ctx) => {
-    const rows = await queryRows(ctx, "MATCH (me:AssistantUser) RETURN me.id AS id, me.name AS name LIMIT 1");
+    const rows = await queryRows(ctx, "MATCH (me:WorldsUser) RETURN me.id AS id, me.name AS name LIMIT 1");
     return rows[0] ?? {};
 };
 const nowIso = () => new Date().toISOString();
@@ -334,7 +334,7 @@ async function recordTaste(ctx, args) {
  */
 async function recordListenerLevel(ctx, args) {
     const me = await currentPerson(ctx);
-    const existing = (await queryRows(ctx, `MATCH (me:AssistantUser)-[:LISTENS_AS]->(l:MusicalListener)
+    const existing = (await queryRows(ctx, `MATCH (me:WorldsUser)-[:LISTENS_AS]->(l:MusicalListener)
        RETURN l.knowledge AS knowledge, l.challenge AS challenge, l.challengeNote AS challengeNote LIMIT 1`))[0] ?? {};
     const knowledge = (args.knowledge ?? "").trim() || existing.knowledge || "casual";
     const challenge = wholeInRange(args.challenge, 1, 10) ?? wholeInRange(existing.challenge, 1, 10) ?? 4;
@@ -409,15 +409,15 @@ async function askMaestro(ctx, args) {
     /* What this listener has actually done. Four cheap reads over stored rows — no virtual joins, so
      * no generation and no web calls: a chat turn must not cost a minute before it starts. */
     const [listener, ratings, listens, stances] = await Promise.all([
-        queryRows(ctx, `MATCH (me:AssistantUser)-[:LISTENS_AS]->(l:MusicalListener)
+        queryRows(ctx, `MATCH (me:WorldsUser)-[:LISTENS_AS]->(l:MusicalListener)
        RETURN l.knowledge AS knowledge, l.challenge AS challenge, l.challengeNote AS challengeNote LIMIT 1`),
-        queryRows(ctx, `MATCH (me:AssistantUser)-[:RATED]->(r:MusicalWorkRating)
+        queryRows(ctx, `MATCH (me:WorldsUser)-[:RATED]->(r:MusicalWorkRating)
        RETURN r.composer AS composer, r.title AS title, r.rating AS rating, r.notes AS notes
        ORDER BY r.rating DESC, r.title ASC LIMIT 40`),
-        queryRows(ctx, `MATCH (me:AssistantUser)-[:HEARD]->(l:MusicalListen)
+        queryRows(ctx, `MATCH (me:WorldsUser)-[:HEARD]->(l:MusicalListen)
        RETURN l.composer AS composer, l.title AS title, l.heardAt AS heardAt, l.finished AS finished
        ORDER BY l.heardAt DESC LIMIT 20`),
-        queryRows(ctx, `MATCH (me:AssistantUser)-[:HAS_TASTE]->(t:MusicalTaste)
+        queryRows(ctx, `MATCH (me:WorldsUser)-[:HAS_TASTE]->(t:MusicalTaste)
        RETURN t.kind AS kind, t.value AS value, t.stance AS stance, t.because AS because
        ORDER BY t.stance ASC, t.value ASC LIMIT 30`),
     ]);
