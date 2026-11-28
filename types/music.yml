@@ -74,7 +74,7 @@
   # its Open Opus workId so it canonicalizes onto this MusicalWork spine and dedupes
   # against works already rated. A LAZY query-time join (materialized transiently when a
   # query traverses it), exactly like pack-movie's SIMILAR_TO. Recommend unheard works with:
-  #   MATCH (u:AssistantUser)-[:RATED]->(rt:MusicalWorkRating) WHERE rt.rating >= 8
+  #   MATCH (u:WorldsUser)-[:RATED]->(rt:MusicalWorkRating) WHERE rt.rating >= 8
   #   MATCH (rt)-[:SIMILAR_TO]->(rec:MusicalWork)
   #   WHERE NOT EXISTS { MATCH (u)-[:RATED]->(seen:MusicalWorkRating) WHERE seen.workId = rec.workId }
   #   RETURN rec.title, count(*) AS overlap ORDER BY overlap DESC LIMIT 10
@@ -94,7 +94,7 @@
     # one rating. Declared HERE under MusicalWork (the TARGET) with anchorLabel MusicalTasteSummary,
     # mirroring pack-movie. Two-stage chain: HAS_MUSICAL_TASTE_SUMMARY (fan-IN) materializes the summary
     # node, then SUGGESTS (fan-OUT) generates works off its `summary`:
-    #   MATCH (me:AssistantUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary)-[:SUGGESTS]->(w:MusicalWork)
+    #   MATCH (me:WorldsUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary)-[:SUGGESTS]->(w:MusicalWork)
     #   WHERE NOT EXISTS { (me)-[:RATED]->(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
     #   RETURN DISTINCT w
     - anchorLabel: MusicalTasteSummary
@@ -189,7 +189,7 @@
 
 - name: MusicalTasteSummary
   # Shared/virtual, not user-OWNED in the persistence sense: like MusicalWork/MusicalRecording it is
-  # materialized on demand and reached FROM the scoped `(me:AssistantUser)`, so it needs no from-user anchor
+  # materialized on demand and reached FROM the scoped `(me:WorldsUser)`, so it needs no from-user anchor
   # of its own. Musical-prefixed label + edge so this pack's fan-in node can't collide with another pack's.
   userAnchor: false
   description: |
@@ -198,7 +198,7 @@
     VIRTUAL — there is no stored MusicalTasteSummary; it is materialized on demand by aggregating (fan-IN) the
     user's ratings into ~100 words (producer `workTasteSummary`, cached weekly). Reach it from the user and
     read `ts.summary`:
-      MATCH (me:AssistantUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary) RETURN ts.summary
+      MATCH (me:WorldsUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary) RETURN ts.summary
   properties:
     # NOT `userId`, which is what this was and which validation now refuses: every fetched node already
     # carries `userId` as its world scope, so keying on it collides with the scope the engine sets and
@@ -216,7 +216,7 @@
   # the user's MusicalWorkRatings and reduces them to one node via the `synthesize` LLM aggregation. keyField
   # is the user's `id`, echoed by the producer into `summaryFor` so the one node links back.
   virtualJoins:
-    - anchorLabel: AssistantUser
+    - anchorLabel: WorldsUser
       relationship: HAS_MUSICAL_TASTE_SUMMARY
       keyField: id
       recordKeyField: anchorKey
@@ -233,7 +233,7 @@
     Reads power "what have I rated?", "what did <person> think of X?", the "exclude already-heard" filter, and
     cross-person queries like "works <A> and <B> would both like".
   # Every rating hangs off a Person by `(Person)-[:RATED]->(MusicalWorkRating)`. The current user's own ratings
-  # anchor on their AssistantUser node, which ALSO carries the `Person` label — so the SAME edge and direction
+  # anchor on their WorldsUser node, which ALSO carries the `Person` label — so the SAME edge and direction
   # serve "me" and everyone else, and a two-person query is one uniform join:
   #   MATCH (a:Person)-[:RATED]->(ra:MusicalWorkRating), (b:Person)-[:RATED]->(rb:MusicalWorkRating)
   #   WHERE ra.workId = rb.workId AND ra.rating >= 8 AND rb.rating >= 8
@@ -374,8 +374,8 @@
     cheerfully offer the same piece a third time.
     Reads answer "what have I been played", "what did I hear and never score", and the honest
     exclusion in a recommendation:
-      MATCH (me:AssistantUser)-[:HEARD]->(l:MusicalListen) RETURN l.title, l.heardAt ORDER BY l.heardAt DESC
-  # Same shape as a rating: the listener's own listens anchor on their AssistantUser node, which also
+      MATCH (me:WorldsUser)-[:HEARD]->(l:MusicalListen) RETURN l.title, l.heardAt ORDER BY l.heardAt DESC
+  # Same shape as a rating: the listener's own listens anchor on their WorldsUser node, which also
   # carries Person, so one edge serves everyone.
   userAnchor:
     predicate: HEARD
@@ -405,7 +405,7 @@
     This is what a rating cannot say and a proposition cannot be joined on. Reads steer every
     recommendation — the generative producers take the avoided dimensions as constraints, so a
     listener states a boundary once instead of re-stating it every time:
-      MATCH (me:AssistantUser)-[:HAS_TASTE]->(t:MusicalTaste) WHERE t.stance IN ['avoids','hates']
+      MATCH (me:WorldsUser)-[:HAS_TASTE]->(t:MusicalTaste) WHERE t.stance IN ['avoids','hates']
       RETURN t.kind, t.value
   userAnchor:
     predicate: HAS_TASTE
@@ -431,7 +431,7 @@
     from a conservatoire student deserves different music and a different explanation — so they
     cannot live only in a conversation. A notebook set holds them for the exchange in progress
     (notebook/listening.yml); this node is what is still true next week, in a view, in an app:
-      MATCH (me:AssistantUser)-[:LISTENS_AS]->(l:MusicalListener) RETURN l.knowledge, l.challenge
+      MATCH (me:WorldsUser)-[:LISTENS_AS]->(l:MusicalListener) RETURN l.knowledge, l.challenge
   userAnchor:
     predicate: LISTENS_AS
     direction: from-user

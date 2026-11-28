@@ -76,7 +76,7 @@ spec:
 
       // 1) STEERED candidate pool — works matching your taste, each with a recording to hear.
       const res = await gateway.kg.query({
-        cypher: `MATCH (me:AssistantUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary)
+        cypher: `MATCH (me:WorldsUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary)
                  MATCH (ts)-[:SUGGESTS {ai: {hint: $steer}}]->(w:MusicalWork)
                  WHERE NOT EXISTS { (me)-[:RATED]->(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
                  OPTIONAL MATCH (w)-[:HAS_RECORDING]->(r:MusicalRecording)

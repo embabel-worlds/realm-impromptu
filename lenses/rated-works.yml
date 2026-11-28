@@ -8,7 +8,7 @@ spec:
   kind: cypherscript
   script: |
     const rows = await gateway.kg.query({
-      cypher: `MATCH (au:AssistantUser)-[:RATED]->(r:MusicalWorkRating)
+      cypher: `MATCH (au:WorldsUser)-[:RATED]->(r:MusicalWorkRating)
                MATCH (w:MusicalWork) WHERE w.workId = r.workId
                RETURN w.id AS id ORDER BY r.rating DESC, r.title ASC`,
       params: JSON.stringify({}),

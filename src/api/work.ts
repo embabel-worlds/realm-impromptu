@@ -185,7 +185,7 @@ export class MusicalWork extends Entity {
   /** The current user's own Person id + name, read from the scoped graph. */
   private async currentUser(): Promise<CurrentUser> {
     const res = await this.api.kg.query({
-      cypher: "MATCH (me:AssistantUser) RETURN me.id AS id, me.name AS name LIMIT 1",
+      cypher: "MATCH (me:WorldsUser) RETURN me.id AS id, me.name AS name LIMIT 1",
       params: JSON.stringify({}),
     });
     const rows = Array.isArray(res) ? res : res.rows || [];

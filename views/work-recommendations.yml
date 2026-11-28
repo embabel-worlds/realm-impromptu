@@ -2,7 +2,7 @@
 # HAS_MUSICAL_TASTE_SUMMARY / SUGGESTS edges are virtual — they materialize on demand when the view runs.
 # (Printed scores are NOT a view/join concern: IMSLP search is a slow crawl, served by the `music`
 # skill as a direct code-mode web search instead.)
-# `(me:AssistantUser)` is NAMED so the scope rewriter binds it to the current user (private ratings never
+# `(me:WorldsUser)` is NAMED so the scope rewriter binds it to the current user (private ratings never
 # leak). Keep every virtual join in the LEADING MATCH block (a virtual join after a `WITH` is NOT
 # materialized); put LIMIT/ORDER BY at the END.
 #
@@ -25,7 +25,7 @@
 - name: WorkRecommendations
   description: Top 5 works you'd like — each with a recording to hear.
   cypher: |
-    MATCH (me:AssistantUser)-[:RATED]->(rt:MusicalWorkRating) WHERE rt.rating >= 8
+    MATCH (me:WorldsUser)-[:RATED]->(rt:MusicalWorkRating) WHERE rt.rating >= 8
     MATCH (rt)-[:SIMILAR_TO]->(w:MusicalWork)
     WHERE NOT EXISTS { (me)-[:RATED]->(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
     MATCH (w)-[:HAS_RECORDING]->(r:MusicalRecording)
@@ -46,7 +46,7 @@
     Works matching your overall taste, each with a recording to hear. At most eight, and never a
     work you have already rated.
   cypher: |
-    MATCH (me:AssistantUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary)
+    MATCH (me:WorldsUser)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary)
     MATCH (ts)-[:SUGGESTS]->(w:MusicalWork)
     WHERE NOT EXISTS { (me)-[:RATED]->(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
     MATCH (w)-[:HAS_RECORDING]->(r:MusicalRecording)
@@ -63,7 +63,7 @@
 - name: ChamberRecommendations
   description: Chamber-music picks based on what you've loved (titles only — fast).
   cypher: |
-    MATCH (me:AssistantUser)-[:RATED]->(rt:MusicalWorkRating) WHERE rt.rating >= 8
+    MATCH (me:WorldsUser)-[:RATED]->(rt:MusicalWorkRating) WHERE rt.rating >= 8
     MATCH (rt)-[:SIMILAR_TO]->(w:MusicalWork)
     WHERE NOT EXISTS { (me)-[:RATED]->(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
       AND w.genre CONTAINS 'Chamber'
@@ -75,7 +75,7 @@
 - name: WorksYoullProbablyDislike
   description: Works like the ones you rated poorly — steer clear (titles only).
   cypher: |
-    MATCH (me:AssistantUser)-[:RATED]->(rt:MusicalWorkRating) WHERE rt.rating <= 4
+    MATCH (me:WorldsUser)-[:RATED]->(rt:MusicalWorkRating) WHERE rt.rating <= 4
     MATCH (rt)-[:SIMILAR_TO]->(w:MusicalWork)
     WHERE NOT EXISTS { (me)-[:RATED]->(seen:MusicalWorkRating) WHERE seen.workId = w.workId }
     RETURN DISTINCT w.composer AS Composer, w.title AS Work
@@ -89,7 +89,7 @@
     A summary of your taste in classical music, from your ratings. Or "No works rated" if you have
     not rated anything; it reads ratings only, not listens or stated stances.
   cypher: |
-    MATCH (me:AssistantUser)
+    MATCH (me:WorldsUser)
     OPTIONAL MATCH (me)-[:HAS_MUSICAL_TASTE_SUMMARY]->(ts:MusicalTasteSummary)
     RETURN coalesce(ts.summary, 'No works rated') AS Taste,
            coalesce(ts.count, 0) AS RatingsUsed
@@ -97,7 +97,7 @@
 # ── Multi-person taste views ────────────────────────────────────────────────────────────────
 # A MusicalWorkRating carries `raterName`/`raterId` and hangs off its rater by
 # `(Person)-[:RATED]->(MusicalWorkRating)` — the current user's own ratings included (their
-# AssistantUser node is also a Person). So "who rated what" and "what would two people both love"
+# WorldsUser node is also a Person). So "who rated what" and "what would two people both love"
 # are plain reads over the ratings; the private-type scope rewriter still confines rows to your workspace.
 # (These populate once more than one person has ratings in the graph.)
 
